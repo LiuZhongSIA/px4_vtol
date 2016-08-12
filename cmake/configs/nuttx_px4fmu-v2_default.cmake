@@ -93,6 +93,7 @@ set(config_module_list
 	#modules/gpio_led
 	modules/uavcan
 	modules/land_detector
+    modules/motion_deley_test
 
 	#
 	# Estimation modules

@@ -56,5 +56,9 @@ __BEGIN_DECLS
  * Initialise the LED driver.
  */
 __EXPORT void gpioa_port_main(void);
+__EXPORT void gpioa_port_init(void);
+__EXPORT void gpioa_port_on(void);
+__EXPORT void gpioa_port_off(void);
+__EXPORT void gpioa_port_toggle(void);
 
 __END_DECLS

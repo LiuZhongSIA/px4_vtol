@@ -37,7 +37,7 @@ px4_add_module(
 	COMPILE_FLAGS
 		-Os
 	SRCS
-		gpioa_port.cpp gpioa_port_api.c
+		gpioa_port.cpp
 	DEPENDS
 		platforms__common
 	)

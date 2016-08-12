@@ -8,6 +8,7 @@
 #include <nuttx/config.h>
 #include <drivers/device/device.h>
 #include <drivers/drv_gpioa_port.h>
+#include <drivers/boards/px4fmu-v2/board_config.h>
 
 /*
  * Ideally we'd be able to get these from up_internal.h,
@@ -16,12 +17,27 @@
  * separate switch, we need to build independent of the
  * CONFIG_ARCH_LEDS configuration switch.
  */
-__BEGIN_DECLS
-extern void gpioa_port_init();
-extern void gpioa_port_on(int gpioa_port);
-extern void gpioa_port_off(int gpioa_port);
-extern void gpioa_port_toggle(int gpioa_port);
-__END_DECLS
+
+void gpioa_port_init(void)
+{
+	/* configure the GPIO to the idle state */
+	stm32_configgpio(GPIOA_PORT_OUTPUT);
+}
+
+void gpioa_port_on(void)
+{
+	stm32_gpiowrite(GPIOA_PORT_OUTPUT, true);
+}
+
+void gpioa_port_off(void)
+{
+	stm32_gpiowrite(GPIOA_PORT_OUTPUT, false);
+}
+
+void gpioa_port_toggle(void)
+{
+
+}
 
 class GPIOA_PORT : device::CDev
 {
@@ -60,15 +76,15 @@ GPIOA_PORT::ioctl(struct file *filp, int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case GPIOA_PORT_ON:
-		gpioa_port_on(arg);
+		gpioa_port_on();
 		break;
 
 	case GPIOA_PORT_OFF:
-		gpioa_port_off(arg);
+		gpioa_port_off();
 		break;
 
 	case GPIOA_PORT_TOGGLE:
-		gpioa_port_toggle(arg);
+		gpioa_port_toggle();
 		break;
 
 
@@ -92,3 +108,4 @@ gpioa_port_main(void)
 			gGPIOA_PORT->init();
 	}
 }
+
