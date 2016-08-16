@@ -73,6 +73,7 @@ set(msg_file_names
 	mission.msg
 	mission_result.msg
 	multirotor_motor_limits.msg
+	motorspeed.msg
 	offboard_control_mode.msg
 	optical_flow.msg
 	output_pwm.msg

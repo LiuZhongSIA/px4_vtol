@@ -120,6 +120,7 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_vision_position_pub(nullptr),
 	_telemetry_status_pub(nullptr),
 	_rc_pub(nullptr),
+	_motor_speed_pub(nullptr),
 	_manual_pub(nullptr),
 	_land_detector_pub(nullptr),
 	_time_offset_pub(nullptr),
@@ -265,6 +266,9 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		handle_message_serial_control(msg);
 		break;
 
+	case MAVLINK_MSG_ID_MOTORSPEED:
+		handle_message_motor_speed(msg);
+		break;
 	default:
 		break;
 	}
@@ -2065,6 +2069,33 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 	}
 }
 
+void
+MavlinkReceiver::handle_message_motor_speed(mavlink_message_t *msg)
+{
+	mavlink_motorspeed_t motor;
+    mavlink_msg_motorspeed_decode(msg, &motor);
+
+    struct motorspeed_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.index = motor.index;
+    f.motorspeed0 = motor.motorspeed0;
+    f.motorspeed1 = motor.motorspeed1;
+    f.motorspeed2 = motor.motorspeed2;
+    f.motorspeed3 = motor.motorspeed3;
+    f.motorspeed4 = motor.motorspeed4;
+    f.motorspeed5 = motor.motorspeed5;
+    f.motorspeed6 = motor.motorspeed6;
+    f.motorspeed7 = motor.motorspeed7;
+
+    if (_motor_speed_pub == nullptr) {
+    	_motor_speed_pub = orb_advertise(ORB_ID(motorspeed), &f);
+
+    } else {
+        orb_publish(ORB_ID(motorspeed), _motor_speed_pub, &f);
+    }
+}
 /**
  * Receive data from UART.
  */

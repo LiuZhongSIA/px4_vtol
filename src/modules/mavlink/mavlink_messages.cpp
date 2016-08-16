@@ -89,6 +89,7 @@
 #include <uORB/topics/vision_position_estimate.h>
 #include <uORB/topics/vtol_vehicle_status.h>
 #include <uORB/topics/wind_estimate.h>
+#include <uORB/topics/motorspeed.h>
 #include <uORB/uORB.h>
 
 
@@ -3218,6 +3219,69 @@ protected:
 	}
 };
 
+class MavlinkStreamMotorSpeed : public MavlinkStream
+{
+public:
+    const char *get_name() const
+    {
+        return MavlinkStreamMotorSpeed::get_name_static();
+    }
+    static const char *get_name_static()
+    {
+        return "MOTORSPEED";
+    }
+	static uint8_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_MOTORSPEED;
+	}
+    uint8_t get_id()
+    {
+        return MAVLINK_MSG_ID_MOTORSPEED;
+    }
+    static MavlinkStream *new_instance(Mavlink *mavlink)
+    {
+        return new MavlinkStreamMotorSpeed(mavlink);
+    }
+    unsigned get_size()
+    {
+        return MAVLINK_MSG_ID_MOTORSPEED_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+    }
+
+private:
+    MavlinkOrbSubscription *_sub;
+    uint64_t _time;
+
+    /* do not allow top copying this class */
+    MavlinkStreamMotorSpeed(MavlinkStreamMotorSpeed &);
+    MavlinkStreamMotorSpeed& operator = (const MavlinkStreamMotorSpeed &);
+
+protected:
+    explicit MavlinkStreamMotorSpeed(Mavlink *mavlink) : MavlinkStream(mavlink),
+        _sub(_mavlink->add_orb_subscription(ORB_ID(motorspeed))),  // make sure you enter the name of your uorb topic here
+        _time(0)
+    {}
+
+    void send(const hrt_abstime t)
+    {
+        struct motorspeed_s _motorspeed;    //make sure ca_traj_struct_s is the definition of your uorb topic
+
+        if (_sub->update(&_time, &_motorspeed)) {
+        	mavlink_motorspeed_t _msg_motorspeed;  //make sure mavlink_ca_trajectory_t is the definition of your custom mavlink message
+
+            _msg_motorspeed.index = _motorspeed.index;
+            _msg_motorspeed.motorspeed0 = _motorspeed.motorspeed0;
+            _msg_motorspeed.motorspeed1 = _motorspeed.motorspeed1;
+            _msg_motorspeed.motorspeed2 = _motorspeed.motorspeed2;
+            _msg_motorspeed.motorspeed3 = _motorspeed.motorspeed3;
+            _msg_motorspeed.motorspeed4 = _motorspeed.motorspeed4;
+            _msg_motorspeed.motorspeed5 = _motorspeed.motorspeed5;
+            _msg_motorspeed.motorspeed6 = _motorspeed.motorspeed6;
+            _msg_motorspeed.motorspeed7 = _motorspeed.motorspeed7;
+
+            mavlink_msg_motorspeed_send_struct(_mavlink->get_channel(), &_msg_motorspeed);
+        }
+    }
+};
 const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamHeartbeat::new_instance, &MavlinkStreamHeartbeat::get_name_static, &MavlinkStreamHeartbeat::get_id_static),
 	new StreamListItem(&MavlinkStreamStatustext::new_instance, &MavlinkStreamStatustext::get_name_static, &MavlinkStreamStatustext::get_id_static),
@@ -3261,5 +3325,6 @@ const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamAltitude::new_instance, &MavlinkStreamAltitude::get_name_static, &MavlinkStreamAltitude::get_id_static),
 	new StreamListItem(&MavlinkStreamADSBVehicle::new_instance, &MavlinkStreamADSBVehicle::get_name_static, &MavlinkStreamADSBVehicle::get_id_static),
 	new StreamListItem(&MavlinkStreamWind::new_instance, &MavlinkStreamWind::get_name_static, &MavlinkStreamWind::get_id_static),
+	new StreamListItem(&MavlinkStreamMotorSpeed::new_instance, &MavlinkStreamMotorSpeed::get_name_static, &MavlinkStreamMotorSpeed::get_id_static),
 	nullptr
 };

@@ -100,7 +100,9 @@ set(config_module_list
 	modules/position_estimator_inav
 	modules/local_position_estimator
 	modules/ekf2
-
+    modules/mavlink_msg_send_test
+    modules/mavlink_msg_receive_test
+    
 	#
 	# Vehicle Control
 	#
