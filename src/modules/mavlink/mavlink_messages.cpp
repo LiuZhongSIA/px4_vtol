@@ -89,6 +89,7 @@
 #include <uORB/topics/vision_position_estimate.h>
 #include <uORB/topics/vtol_vehicle_status.h>
 #include <uORB/topics/wind_estimate.h>
+#include <uORB/topics/mavros_msg.h>
 #include <uORB/uORB.h>
 
 
@@ -3218,6 +3219,63 @@ protected:
 	}
 };
 
+class MavlinkStreamMavrosMsg : public MavlinkStream
+{
+public:
+    const char *get_name() const
+    {
+        return MavlinkStreamMavrosMsg::get_name_static();
+    }
+    static const char *get_name_static()
+    {
+        return "MAVROS_MSG";
+    }
+	static uint8_t get_id_static()
+	{
+		return MAVLINK_MSG_ID_MAVROS_MSG;
+	}
+    uint8_t get_id()
+    {
+        return MAVLINK_MSG_ID_MAVROS_MSG;
+    }
+    static MavlinkStream *new_instance(Mavlink *mavlink)
+    {
+        return new MavlinkStreamMavrosMsg(mavlink);
+    }
+    unsigned get_size()
+    {
+        return MAVLINK_MSG_ID_MAVROS_MSG_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+    }
+
+private:
+    MavlinkOrbSubscription *_sub;
+    uint64_t _time;
+
+    /* do not allow top copying this class */
+    MavlinkStreamMavrosMsg(MavlinkStreamMavrosMsg &);
+    MavlinkStreamMavrosMsg& operator = (const MavlinkStreamMavrosMsg &);
+
+protected:
+    explicit MavlinkStreamMavrosMsg(Mavlink *mavlink) : MavlinkStream(mavlink),
+        _sub(_mavlink->add_orb_subscription(ORB_ID(mavros_msg))),  // make sure you enter the name of your uorb topic here
+        _time(0)
+    {}
+
+    void send(const hrt_abstime t)
+    {
+        struct mavros_msg_s _data;    //make sure ca_traj_struct_s is the definition of your uorb topic
+
+        if (_sub->update(&_time, &_data)) {
+        	mavlink_mavros_msg_t _msg_data;  //make sure mavlink_ca_trajectory_t is the definition of your custom mavlink message
+
+        	_msg_data.timestamp = hrt_absolute_time();
+        	_msg_data.test 		= _data.test;
+
+        	mavlink_msg_mavros_msg_send_struct(_mavlink->get_channel(), &_msg_data);
+        }
+    }
+};
+
 const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamHeartbeat::new_instance, &MavlinkStreamHeartbeat::get_name_static, &MavlinkStreamHeartbeat::get_id_static),
 	new StreamListItem(&MavlinkStreamStatustext::new_instance, &MavlinkStreamStatustext::get_name_static, &MavlinkStreamStatustext::get_id_static),
@@ -3261,5 +3319,6 @@ const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamAltitude::new_instance, &MavlinkStreamAltitude::get_name_static, &MavlinkStreamAltitude::get_id_static),
 	new StreamListItem(&MavlinkStreamADSBVehicle::new_instance, &MavlinkStreamADSBVehicle::get_name_static, &MavlinkStreamADSBVehicle::get_id_static),
 	new StreamListItem(&MavlinkStreamWind::new_instance, &MavlinkStreamWind::get_name_static, &MavlinkStreamWind::get_id_static),
+	new StreamListItem(&MavlinkStreamMavrosMsg::new_instance, &MavlinkStreamMavrosMsg::get_name_static, &MavlinkStreamMavrosMsg::get_id_static),
 	nullptr
 };

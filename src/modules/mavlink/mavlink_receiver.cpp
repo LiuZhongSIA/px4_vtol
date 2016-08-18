@@ -121,6 +121,7 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_telemetry_status_pub(nullptr),
 	_rc_pub(nullptr),
 	_manual_pub(nullptr),
+	_mavros_msg_pub(nullptr),
 	_land_detector_pub(nullptr),
 	_time_offset_pub(nullptr),
 	_follow_target_pub(nullptr),
@@ -263,6 +264,10 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 
 	case MAVLINK_MSG_ID_SERIAL_CONTROL:
 		handle_message_serial_control(msg);
+		break;
+
+	case MAVLINK_MSG_ID_MAVROS_MSG:
+		handle_message_mavros_msg(msg);
 		break;
 
 	default:
@@ -2063,6 +2068,26 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 			orb_publish(ORB_ID(battery_status), _battery_pub, &hil_battery_status);
 		}
 	}
+}
+
+void
+MavlinkReceiver::handle_message_mavros_msg(mavlink_message_t *msg)
+{
+	mavlink_mavros_msg_t mavros_msg_data;
+	mavlink_msg_mavros_msg_decode(msg, &mavros_msg_data);
+
+    struct mavros_msg_s f;
+    memset(&f, 0, sizeof(f));
+
+    f.timestamp = hrt_absolute_time();
+    f.test = mavros_msg_data.test;
+
+    if (_mavros_msg_pub == nullptr) {
+    	_mavros_msg_pub = orb_advertise(ORB_ID(mavros_msg), &f);
+
+    } else {
+        orb_publish(ORB_ID(mavros_msg), _mavros_msg_pub, &f);
+    }
 }
 
 /**

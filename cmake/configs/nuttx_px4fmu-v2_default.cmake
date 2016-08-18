@@ -110,6 +110,12 @@ set(config_module_list
 	modules/mc_pos_control
 	modules/vtol_att_control
 
+    #
+    # test code
+    #
+    modules/mavlink_msg_receive_test
+    modules/mavlink_msg_send_test
+    
 	#
 	# Logging
 	#
