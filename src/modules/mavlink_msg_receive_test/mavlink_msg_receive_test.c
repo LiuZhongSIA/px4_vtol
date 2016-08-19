@@ -164,7 +164,7 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 		if (fds[0].revents & POLLIN) {
 			struct motorspeed_s motor;
 			orb_copy(ORB_ID(motorspeed), motor_sub_fd, &motor);
-			PX4_WARN("[mavlink_msg_receive] speed:\t%8.4f\t%8.4f\t%8.4f",
+			PX4_WARN("speed:\t%8.4f\t%8.4f\t%8.4f",
 				 (double)motor.motorspeed0,
 				 (double)motor.motorspeed1,
 				 (double)motor.motorspeed2);
