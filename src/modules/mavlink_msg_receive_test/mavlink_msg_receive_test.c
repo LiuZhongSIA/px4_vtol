@@ -49,7 +49,7 @@
 #include <nuttx/sched.h>
 
 #include <uORB/uORB.h>
-#include <uORB/topics/mavros_msg.h>
+#include <uORB/topics/mavros_test_msg.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
@@ -144,7 +144,7 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 	thread_running = true;
 
 	/* subscribe to sensor_combined topic */
-	int sub_fd = orb_subscribe(ORB_ID(mavros_msg));
+	int sub_fd = orb_subscribe(ORB_ID(mavros_test_msg));
 	//orb_set_interval(sub_fd, 100);
 
 	px4_pollfd_struct_t fds[1];
@@ -162,8 +162,8 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 			continue;
 		}
 		if (fds[0].revents & POLLIN) {
-			struct mavros_msg_s data;
-			orb_copy(ORB_ID(mavros_msg), sub_fd, &data);
+			struct mavros_test_msg_s data;
+			orb_copy(ORB_ID(mavros_test_msg), sub_fd, &data);
 			PX4_WARN("[mavlink_msg_receive] speed:\t%8.4f\n", (double)data.test);
 		}
 	}

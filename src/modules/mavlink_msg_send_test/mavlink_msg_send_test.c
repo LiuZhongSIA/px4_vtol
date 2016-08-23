@@ -49,7 +49,7 @@
 #include <arch/board/board.h>
 
 #include <uORB/uORB.h>
-#include <uORB/topics/mavros_msg.h>
+#include <uORB/topics/mavros_test_msg.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
@@ -143,13 +143,13 @@ int mavlink_msg_send_thread_main(int argc, char *argv[])
 
 	//
 	thread_running = true;
-	struct mavros_msg_s mavros_data;
+	struct mavros_test_msg_s mavros_data;
 	memset(&mavros_data , 0, sizeof(mavros_data));
-	orb_advert_t mavros_msg_pub = orb_advertise(ORB_ID(mavros_msg), &mavros_data);
+	orb_advert_t mavros_test_msg_pub = orb_advertise(ORB_ID(mavros_test_msg), &mavros_data);
 	while (!thread_should_exit) {
 		mavros_data.timestamp = hrt_absolute_time();
 		mavros_data.test = 2.0f;
-		orb_publish(ORB_ID(mavros_msg), mavros_msg_pub, &mavros_data);
+		orb_publish(ORB_ID(mavros_test_msg), mavros_test_msg_pub, &mavros_data);
 		sleep(10);
 	}
 

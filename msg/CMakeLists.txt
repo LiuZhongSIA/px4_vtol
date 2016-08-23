@@ -67,7 +67,7 @@ set(msg_file_names
 	input_rc.msg
 	manual_control_setpoint.msg
 	mavlink_log.msg
-	mavros_msg.msg
+	mavros_test_msg.msg
 	mc_att_ctrl_status.msg
 	mc_virtual_attitude_setpoint.msg
 	mc_virtual_rates_setpoint.msg
