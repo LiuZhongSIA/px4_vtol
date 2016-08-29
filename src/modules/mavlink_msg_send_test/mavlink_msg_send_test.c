@@ -146,9 +146,14 @@ int mavlink_msg_send_thread_main(int argc, char *argv[])
 	orb_advert_t motorspeed_pub = orb_advertise(ORB_ID(motorspeed), &mospeed);
 	while (!thread_should_exit) {
 		mospeed.index = 1;
-	    mospeed.motorspeed0 = 2;
-	    mospeed.motorspeed1 = 3;
-	    mospeed.motorspeed2 = 4;
+	    mospeed.motorspeed0 = 0;
+	    mospeed.motorspeed1 = 1;
+	    mospeed.motorspeed2 = 2;
+	    mospeed.motorspeed3 = 3;
+	    mospeed.motorspeed4 = 4;
+	    mospeed.motorspeed5 = 5;
+	    mospeed.motorspeed6 = 6;
+	    mospeed.motorspeed7 = 7;
 		orb_publish(ORB_ID(motorspeed), motorspeed_pub, &mospeed);
 		sleep(10);
 	}

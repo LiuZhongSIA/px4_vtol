@@ -145,7 +145,7 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 
 	/* subscribe to sensor_combined topic */
 	int motor_sub_fd = orb_subscribe(ORB_ID(motorspeed));
-	orb_set_interval(motor_sub_fd, 1000);
+	//orb_set_interval(motor_sub_fd, 1000);
 
 	px4_pollfd_struct_t fds[1];
 	fds[0].fd     = motor_sub_fd;
@@ -164,10 +164,15 @@ int mavlink_msg_receive_thread_main(int argc, char *argv[])
 		if (fds[0].revents & POLLIN) {
 			struct motorspeed_s motor;
 			orb_copy(ORB_ID(motorspeed), motor_sub_fd, &motor);
-			PX4_WARN("speed:\t%8.4f\t%8.4f\t%8.4f",
-				 (double)motor.motorspeed0,
-				 (double)motor.motorspeed1,
-				 (double)motor.motorspeed2);
+			PX4_WARN("speed:m0:%d m1:%d m2:%d m3:%d m4:%d m5:%d m6:%d m7:%d",
+				 	 motor.motorspeed0,
+				 	 motor.motorspeed1,
+				 	 motor.motorspeed2,
+					 motor.motorspeed3,
+					 motor.motorspeed4,
+					 motor.motorspeed5,
+					 motor.motorspeed6,
+					 motor.motorspeed7);
 		}
 	}
 
