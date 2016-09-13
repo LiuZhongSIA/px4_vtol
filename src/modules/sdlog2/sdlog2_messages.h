@@ -625,6 +625,20 @@ struct log_LOAD_s {
 	float cpu_load;
 };
 
+/* --- MOTOR SPEED --- */
+#define LOG_MOSP_MSG 62
+struct log_MOSP_s {
+	 uint8_t index;
+	 uint8_t motorspeed0;
+	 uint8_t motorspeed1;
+	 uint8_t motorspeed2;
+	 uint8_t motorspeed3;
+	 uint8_t motorspeed4;
+	 uint8_t motorspeed5;
+	 uint8_t motorspeed6;
+	 uint8_t motorspeed7;
+};
+
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -714,6 +728,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(RPL6, "Qff", "Tasp,inAsp,trAsp"),
 	LOG_FORMAT(LAND, "B", "Landed"),
 	LOG_FORMAT(LOAD, "f", "CPU"),
+	LOG_FORMAT(MOSP, "BBBBBBBBB", "index,mosp0,mosp1,mosp2,mosp3,mosp4,mosp5,mosp6,mosp7"),
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),

@@ -111,6 +111,7 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/commander_state.h>
 #include <uORB/topics/cpuload.h>
+#include <uORB/topics/motorspeed.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1217,6 +1218,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct ekf2_replay_s replay;
 		struct vehicle_land_detected_s land_detected;
 		struct cpuload_s cpuload;
+		struct motorspeed_s motorspeed;
 		struct vehicle_gps_position_s dual_gps_pos;
 	} buf;
 
@@ -1279,6 +1281,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_LAND_s log_LAND;
 			struct log_RPL6_s log_RPL6;
 			struct log_LOAD_s log_LOAD;
+			struct log_MOSP_s log_MOSP;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1328,6 +1331,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int land_detected_sub;
 		int commander_state_sub;
 		int cpuload_sub;
+		int motor_speed_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1370,6 +1374,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.land_detected_sub = -1;
 	subs.commander_state_sub = -1;
 	subs.cpuload_sub = -1;
+	subs.motor_speed_sub = -1;
 
 	/* add new topics HERE */
 
@@ -2293,6 +2298,21 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.msg_type = LOG_LOAD_MSG;
 			log_msg.body.log_LOAD.cpu_load = buf.cpuload.load;
 			LOGBUFFER_WRITE_AND_COUNT(LOAD);
+
+		}
+		/* --- MOTOR SPEED --- */
+		if (copy_if_updated(ORB_ID(motorspeed), &subs.motor_speed_sub, &buf.motorspeed)) {
+			log_msg.msg_type = LOG_MOSP_MSG;
+			log_msg.body.log_MOSP.index			= buf.motorspeed.index;
+			log_msg.body.log_MOSP.motorspeed0	= buf.motorspeed.motorspeed0;
+			log_msg.body.log_MOSP.motorspeed1	= buf.motorspeed.motorspeed1;
+			log_msg.body.log_MOSP.motorspeed2	= buf.motorspeed.motorspeed2;
+			log_msg.body.log_MOSP.motorspeed3	= buf.motorspeed.motorspeed3;
+			log_msg.body.log_MOSP.motorspeed4	= buf.motorspeed.motorspeed4;
+			log_msg.body.log_MOSP.motorspeed5	= buf.motorspeed.motorspeed5;
+			log_msg.body.log_MOSP.motorspeed6	= buf.motorspeed.motorspeed6;
+			log_msg.body.log_MOSP.motorspeed7	= buf.motorspeed.motorspeed7;
+			LOGBUFFER_WRITE_AND_COUNT(MOSP);
 
 		}
 
