@@ -32,8 +32,8 @@
  ****************************************************************************/
 
 /**
- * @file motion_deley_test.c
- * motion_deley application example for PX4 autopilot
+ * @file motion_delay_test.c
+ * motion_delay application example for PX4 autopilot
  *
  * @author huang li long <huanglilongwk@outlook.com>
  */
@@ -58,22 +58,22 @@
 #include <uORB/topics/att_pos_mocap.h>
 #include <drivers/drv_gpioa_port.h>
 
-static bool thread_should_exit = false;		/**< motion_deley exit flag */
-static bool thread_running = false;			/**< motion_deley status flag */
-static int motion_deley_task;				/**< Handle of motion_deley task / thread */
+static bool thread_should_exit = false;		/**< motion_delay exit flag */
+static bool thread_running = false;			/**< motion_delay status flag */
+static int motion_delay_task;				/**< Handle of motion_delay task / thread */
 
 orb_advert_t	_mocap_pub = 0;
 int				_mocap_sub;
 
 /**
- * motion_deley management function.
+ * motion_delay management function.
  */
-__EXPORT int motion_deley_test_main(int argc, char *argv[]);
+__EXPORT int motion_delay_test_main(int argc, char *argv[]);
 
 /**
- * Mainloop of motion_deley.
+ * Mainloop of motion_delay.
  */
-int motion_deley_thread_main(int argc, char *argv[]);
+int motion_delay_thread_main(int argc, char *argv[]);
 
 /**
  * Print the correct usage.
@@ -87,31 +87,31 @@ usage(const char *reason)
 		warnx("%s\n", reason);
 	}
 
-	warnx("usage: motion_deley {start|stop|status} [-p <additional params>]\n\n");
+	warnx("usage: motion_delay {start|stop|status} [-p <additional params>]\n\n");
 }
 
-int motion_deley_thread_main(int argc, char *argv[])
+int motion_delay_thread_main(int argc, char *argv[])
 {
 
 	thread_running = true;
 
 	_mocap_sub = orb_subscribe(ORB_ID(att_pos_mocap));
+	static uint64_t prev_off_time;
 	px4_pollfd_struct_t fds[1];
 	fds[0].fd = _mocap_sub;
 	fds[0].events = POLLIN;
 
 	gpioa_port_init();
-	//gpioa_port_off();
+	gpioa_port_off();
+	prev_off_time=hrt_absolute_time();
 	while (!thread_should_exit) {
-
 		struct att_pos_mocap_s mocap_data;
 		int pret = px4_poll(&fds[0], (sizeof(fds) / sizeof(fds[0])), 100);
 
-		static uint64_t prev_time = 0;
-		float dt = (hrt_absolute_time() - prev_time) / 1000000.0f;
+		float dt = (hrt_absolute_time() - prev_off_time) / 1000000.0f;
 		if(dt > 2.0f) // > 2 seconds
 		{
-			//gpioa_port_on(); // turn on
+			gpioa_port_on();
 		}
 		if (pret == 0) {
 			continue;
@@ -122,11 +122,10 @@ int motion_deley_thread_main(int argc, char *argv[])
 		}
 
 		orb_copy(ORB_ID(att_pos_mocap), _mocap_sub, &mocap_data);
-
-		// message from groundcontrol
 		if(mocap_data.x < -1.0f)
 		{
-			gpioa_port_off(); // turn off
+			gpioa_port_off();
+			prev_off_time = hrt_absolute_time();
 			uint64_t times = hrt_absolute_time();
 			mocap_data.y = (times - mocap_data.timestamp_received) / 1000000.0f;
 			if (_mocap_pub != 0) {
@@ -143,7 +142,7 @@ int motion_deley_thread_main(int argc, char *argv[])
 	return 0;
 }
 
-int motion_deley_test_main(int argc, char *argv[])
+int motion_delay_test_main(int argc, char *argv[])
 {
 	if (argc < 2) {
 		usage("missing command");
@@ -153,17 +152,17 @@ int motion_deley_test_main(int argc, char *argv[])
 	if (!strcmp(argv[1], "start")) {
 
 		if (thread_running) {
-			warnx("motion_deley already running\n");
+			warnx("motion_delay already running\n");
 			/* this is not an error */
 			return 0;
 		}
 		gpioa_port_off();
 		thread_should_exit = false;
-		motion_deley_task = px4_task_spawn_cmd("motion_deley",
+		motion_delay_task = px4_task_spawn_cmd("motion_delay",
 						 SCHED_DEFAULT,
 						 SCHED_PRIORITY_DEFAULT,
 						 2000,
-						 motion_deley_thread_main,
+						 motion_delay_thread_main,
 						 (argv) ? (char *const *)&argv[2] : (char *const *)NULL);
 		return 0;
 	}

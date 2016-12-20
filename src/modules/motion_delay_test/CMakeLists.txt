@@ -31,12 +31,12 @@
 #
 ############################################################################
 px4_add_module(
-	MODULE modules__motion_deley_test
-	MAIN motion_deley_test
+	MODULE modules__motion_delay_test
+	MAIN motion_delay_test
 	STACK_MAIN 1200
 	COMPILE_FLAGS -Os
 	SRCS
-		motion_deley_test.c
+		motion_delay_test.c
 	DEPENDS
 		platforms__common
 	)
