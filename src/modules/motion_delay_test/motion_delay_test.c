@@ -96,22 +96,31 @@ int motion_delay_thread_main(int argc, char *argv[])
 	thread_running = true;
 
 	_mocap_sub = orb_subscribe(ORB_ID(att_pos_mocap));
-	static uint64_t prev_off_time;
 	px4_pollfd_struct_t fds[1];
 	fds[0].fd = _mocap_sub;
 	fds[0].events = POLLIN;
 
+	// By LZ
 	gpioa_port_init();
-	gpioa_port_off();
-	prev_off_time=hrt_absolute_time();
+	uint64_t pre_off_time = 0; //上一次关灯的时间
+	gpioa_port_on(); //开灯记录时间
+	uint64_t on_time = hrt_absolute_time();
+	struct att_pos_mocap_s mocap_data;
+	bool FlagOn=false;
 	while (!thread_should_exit) {
-		struct att_pos_mocap_s mocap_data;
 		int pret = px4_poll(&fds[0], (sizeof(fds) / sizeof(fds[0])), 100);
+		// 等待数据更新100ms
 
-		float dt = (hrt_absolute_time() - prev_off_time) / 1000000.0f;
-		if(dt > 2.0f) // > 2 seconds
+		float dt = (hrt_absolute_time() - pre_off_time) / 1000000.0f;
+		if(dt > 0.5f) //> 0.5 second
+		// 保证每隔一定时间将灯点亮
 		{
-			gpioa_port_on();
+			if (!FlagOn)
+			{
+				gpioa_port_on(); //开灯记录时间
+				FlagOn=true;
+				on_time = hrt_absolute_time();
+			}
 		}
 		if (pret == 0) {
 			continue;
@@ -122,15 +131,31 @@ int motion_delay_thread_main(int argc, char *argv[])
 		}
 
 		orb_copy(ORB_ID(att_pos_mocap), _mocap_sub, &mocap_data);
-		if(mocap_data.x < -1.0f)
+		if(mocap_data.z > 900.0f)
+		// 表明为收到的Mavlink消息
 		{
-			gpioa_port_off();
-			prev_off_time = hrt_absolute_time();
-			uint64_t times = hrt_absolute_time();
-			mocap_data.y = (times - mocap_data.timestamp_received) / 1000000.0f;
+			if(mocap_data.x > 900.0f && mocap_data.y > 900.0f && FlagOn)
+			// 收到的伪数据，表示检测到灯打开
+			{
+				FlagOn=false;
+				printf("Get fake message.\n");
+				gpioa_port_off(); //关灯并记录时间
+				pre_off_time = hrt_absolute_time();
+				//
+				mocap_data.x = (float)(hrt_absolute_time() - on_time); //us
+				mocap_data.y = on_time;
+				mocap_data.z = 0.0f;
+			}
+			else
+			// 收到的真数据
+			{
+				printf("Get real message.\n");
+				mocap_data.x = 1.0f;
+				mocap_data.y = 1.0f;
+				mocap_data.z = 1.0f;
+			}
 			if (_mocap_pub != 0) {
 				orb_publish(ORB_ID(att_pos_mocap), _mocap_pub, &mocap_data);
-
 			} else {
 				_mocap_pub = orb_advertise(ORB_ID(att_pos_mocap), &mocap_data);
 			}
@@ -138,7 +163,6 @@ int motion_delay_thread_main(int argc, char *argv[])
 	}
 
 	thread_running = false;
-
 	return 0;
 }
 
