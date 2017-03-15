@@ -44,6 +44,7 @@
 #include <systemlib/param/param.h>
 #include <drivers/drv_hrt.h>
 
+// 一个继承
 class Tiltrotor : public VtolType
 {
 
@@ -52,15 +53,16 @@ public:
 	Tiltrotor(VtolAttitudeControl *_att_controller);
 	~Tiltrotor();
 
-	virtual void update_vtol_state();
+	virtual void update_vtol_state(); //状态机
 	virtual void update_transition_state();
-	virtual void fill_actuator_outputs();
+	virtual void fill_actuator_outputs(); //执行器控制量输出
 	virtual void update_mc_state();
 	virtual void update_fw_state();
 	virtual void waiting_on_tecs();
 
 private:
 
+	// 倾转旋翼特有的参数、参数句柄
 	struct {
 		float front_trans_dur;			/**< duration of first part of front transition */
 		float back_trans_dur;			/**< duration of back transition */
@@ -73,7 +75,6 @@ private:
 		float front_trans_dur_p2;
 		int fw_motors_off;			/**< bitmask of all motors that should be off in fixed wing mode */
 	} _params_tiltrotor;
-
 	struct {
 		param_t front_trans_dur;
 		param_t back_trans_dur;
@@ -87,6 +88,7 @@ private:
 		param_t fw_motors_off;
 	} _params_handles_tiltrotor;
 
+	// 集中倾转模式
 	enum vtol_mode {
 		MC_MODE = 0,			/**< vtol is in multicopter mode */
 		TRANSITION_FRONT_P1,	/**< vtol is in front transition part 1 mode */
@@ -100,17 +102,20 @@ private:
 	 * These engines need to be shut down in fw mode. During the back-transition
 	 * they need to idle otherwise they need too much time to spin up for mc mode.
 	 */
+	// 尾部旋翼状态
 	enum rear_motor_state {
 		ENABLED = 0,
 		DISABLED,
 		IDLE
 	} _rear_motors;
 
+	// 过渡状态机的状态
 	struct {
 		vtol_mode flight_mode;			/**< vtol flight mode, defined by enum vtol_mode */
 		hrt_abstime transition_start;	/**< absoulte time at which front transition started */
 	} _vtol_schedule;
 
+	// 倾转舵机的控制值
 	float _tilt_control;		/**< actuator value for the tilt servo */
 
 	const float _min_front_trans_dur;	/**< min possible time in which rotors are rotated into the first position */
@@ -118,21 +123,25 @@ private:
 	/**
 	 * Return a bitmap of channels that should be turned off in fixed wing mode.
 	 */
+	// 固定翼模式下需要被关闭通道的 bitmap
 	int get_motor_off_channels(const int channels);
 
 	/**
 	 * Return true if the motor channel is off in fixed wing mode.
 	 */
+	// 检测一个通道是否被关闭，固定翼模式下
 	bool is_motor_off_channel(const int channel);
 
 	/**
 	 * Adjust the state of the rear motors. In fw mode they shouldn't spin.
 	 */
+	// 设置尾部旋翼额状态
 	void set_rear_motor_state(rear_motor_state state);
 
 	/**
 	 * Update parameters.
 	 */
+	// 更新倾转旋翼的特有控制参数
 	virtual void parameters_update();
 
 };

@@ -106,13 +106,14 @@ class VtolAttitudeControl
 {
 public:
 
-	VtolAttitudeControl();
-	~VtolAttitudeControl();
+	VtolAttitudeControl(); //构造函数
+	~VtolAttitudeControl(); //析构函数
 
 	int start();	/* start the task and return OK on success */
 	bool is_fixed_wing_requested();
 	void abort_front_transition(const char *reason);
 
+	// 返回变量指针
 	struct vehicle_attitude_s 			*get_att() {return &_v_att;}
 	struct vehicle_attitude_setpoint_s		*get_att_sp() {return &_v_att_sp;}
 	struct mc_virtual_attitude_setpoint_s 		*get_mc_virtual_att_sp() {return &_mc_virtual_att_sp;}
@@ -139,6 +140,7 @@ public:
 
 private:
 //******************flags & handlers******************************************************
+// 要订阅与发布消息的句柄
 	bool _task_should_exit;
 	int _control_task;		//task handle for VTOL attitude controller
 	orb_advert_t _mavlink_log_pub;	// mavlink log uORB handle
@@ -172,6 +174,7 @@ private:
 	orb_advert_t	_v_att_sp_pub;
 
 //*******************data containers***********************************************************
+// 要订阅或发布的消息存储其中
 	struct vehicle_attitude_s			_v_att;				//vehicle attitude
 	struct vehicle_attitude_setpoint_s		_v_att_sp;			//vehicle attitude setpoint
 	struct mc_virtual_attitude_setpoint_s 		_mc_virtual_att_sp;	// virtual mc attitude setpoint
@@ -194,8 +197,9 @@ private:
 	struct tecs_status_s				_tecs_status;
 	struct vehicle_land_detected_s			_land_detected;
 
+	// 定义在 vtol_type.h 中，存储关于vtol特有参数的定义
 	Params _params;	// struct holding the parameters
-
+	// 上述vtol特有参数的句柄
 	struct {
 		param_t idle_pwm_mc;
 		param_t vtol_motor_count;
@@ -212,12 +216,14 @@ private:
 		param_t fw_min_alt;
 	} _params_handles;
 
-	/* for multicopters it is usual to have a non-zero idle speed of the engines
+	/* for multicopters it is usual to have a non-zero idle（闲置） speed of the engines
 	 * for fixed wings we want to have an idle speed of zero since we do not want
 	 * to waste energy when gliding. */
 	int _transition_command;
-	bool _abort_front_transition;
+	bool _abort_front_transition; //终止前向倾转
 
+	// 定义于 vtol_type.h，这里赋值为空
+	// 后面会根据实际的飞行器类型，赋予此变量具体的值
 	VtolType *_vtol_type = nullptr;	// base class for different vtol types
 
 //*****************Member functions***********************************************************************
@@ -225,6 +231,7 @@ private:
 	void 		task_main();	//main task
 	static void	task_main_trampoline(int argc, char *argv[]);	//Shim for calling task_main from task_create.
 
+	// 更新订阅的topic
 	void		vehicle_control_mode_poll();	//Check for changes in vehicle control mode.
 	void		vehicle_manual_poll();			//Check for changes in manual inputs.
 	void		arming_status_poll();			//Check for arming status updates.
@@ -243,10 +250,14 @@ private:
 	void		tecs_status_poll();
 	void		land_detected_poll();
 	void 		parameters_update_poll();		//Check if parameters have changed
+	// 更新vtol特有参数
 	int 		parameters_update();			//Update local paraemter cache
-	void 		fill_mc_att_rates_sp();
-	void 		fill_fw_att_rates_sp();
+	// 仅转移存储变量
+	void 		fill_mc_att_rates_sp(); //mc_virtual_v_rates_sp -> _v_rates_sp
+	void 		fill_fw_att_rates_sp(); //
+	// 处理倾转指令
 	void		handle_command();
+	// 发布姿态控制期望
 	void 		publish_att_sp();
 };
 

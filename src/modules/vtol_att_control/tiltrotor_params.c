@@ -49,7 +49,7 @@
  * @decimal 3
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_TILT_MC, 0.0f);
+PARAM_DEFINE_FLOAT(VT_TILT_MC, 0.0f); //
 
 /**
  * Position of tilt servo in transition mode
@@ -60,7 +60,7 @@ PARAM_DEFINE_FLOAT(VT_TILT_MC, 0.0f);
  * @decimal 3
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_TILT_TRANS, 0.3f);
+PARAM_DEFINE_FLOAT(VT_TILT_TRANS, 0.3f); //
 
 /**
  * Position of tilt servo in fw mode
@@ -71,7 +71,7 @@ PARAM_DEFINE_FLOAT(VT_TILT_TRANS, 0.3f);
  * @decimal 3
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_TILT_FW, 1.0f);
+PARAM_DEFINE_FLOAT(VT_TILT_FW, 1.0f); //
 
 /**
  * Duration of front transition phase 2
@@ -86,7 +86,7 @@ PARAM_DEFINE_FLOAT(VT_TILT_FW, 1.0f);
  * @decimal 3
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_TRANS_P2_DUR, 0.5f);
+PARAM_DEFINE_FLOAT(VT_TRANS_P2_DUR, 0.5f); //
 
 /**
  * The channel number of motors that must be turned off in fixed wing mode.
@@ -97,4 +97,4 @@ PARAM_DEFINE_FLOAT(VT_TRANS_P2_DUR, 0.5f);
  * @decimal 0
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_INT32(VT_FW_MOT_OFFID, 0);
+PARAM_DEFINE_INT32(VT_FW_MOT_OFFID, 0); //

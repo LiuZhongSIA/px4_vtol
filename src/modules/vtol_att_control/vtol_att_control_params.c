@@ -48,7 +48,7 @@
  * @decimal 0
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_INT32(VT_MOT_COUNT, 0);
+PARAM_DEFINE_INT32(VT_MOT_COUNT, 0); //
 
 /**
  * Idle speed of VTOL when in multicopter mode
@@ -60,7 +60,7 @@ PARAM_DEFINE_INT32(VT_MOT_COUNT, 0);
  * @decimal 0
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_INT32(VT_IDLE_PWM_MC, 900);
+PARAM_DEFINE_INT32(VT_IDLE_PWM_MC, 900); //
 
 /**
  * Minimum airspeed in multicopter mode
@@ -74,7 +74,7 @@ PARAM_DEFINE_INT32(VT_IDLE_PWM_MC, 900);
  * @decimal 2
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_MC_ARSPD_MIN, 10.0f);
+PARAM_DEFINE_FLOAT(VT_MC_ARSPD_MIN, 10.0f); //
 
 /**
  * Maximum airspeed in multicopter mode
@@ -88,7 +88,7 @@ PARAM_DEFINE_FLOAT(VT_MC_ARSPD_MIN, 10.0f);
  * @decimal 2
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_MC_ARSPD_MAX, 30.0f);
+PARAM_DEFINE_FLOAT(VT_MC_ARSPD_MAX, 30.0f); //
 
 /**
  * Trim airspeed when in multicopter mode
@@ -102,7 +102,7 @@ PARAM_DEFINE_FLOAT(VT_MC_ARSPD_MAX, 30.0f);
  * @decimal 2
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_MC_ARSPD_TRIM, 10.0f);
+PARAM_DEFINE_FLOAT(VT_MC_ARSPD_TRIM, 10.0f); //
 
 /**
  * Permanent stabilization in fw mode
@@ -113,7 +113,7 @@ PARAM_DEFINE_FLOAT(VT_MC_ARSPD_TRIM, 10.0f);
  * @boolean
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_INT32(VT_FW_PERM_STAB, 0);
+PARAM_DEFINE_INT32(VT_FW_PERM_STAB, 0); //
 
 /**
  * Fixed wing pitch trim
@@ -126,7 +126,7 @@ PARAM_DEFINE_INT32(VT_FW_PERM_STAB, 0);
  * @decimal 2
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_FW_PITCH_TRIM, 0.0f);
+PARAM_DEFINE_FLOAT(VT_FW_PITCH_TRIM, 0.0f); //
 
 /**
  * Motor max power
@@ -141,7 +141,7 @@ PARAM_DEFINE_FLOAT(VT_FW_PITCH_TRIM, 0.0f);
  * @decimal 0
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_POWER_MAX, 120.0f);
+PARAM_DEFINE_FLOAT(VT_POWER_MAX, 120.0f); //
 
 /**
  * Propeller efficiency parameter
@@ -154,7 +154,7 @@ PARAM_DEFINE_FLOAT(VT_POWER_MAX, 120.0f);
  * @decimal 3
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_PROP_EFF, 0.0f);
+PARAM_DEFINE_FLOAT(VT_PROP_EFF, 0.0f); //
 
 /**
  * Total airspeed estimate low-pass filter gain
@@ -167,7 +167,7 @@ PARAM_DEFINE_FLOAT(VT_PROP_EFF, 0.0f);
  * @decimal 3
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_ARSP_LP_GAIN, 0.3f);
+PARAM_DEFINE_FLOAT(VT_ARSP_LP_GAIN, 0.3f); //
 
 /**
  * VTOL Type (Tailsitter=0, Tiltrotor=1, Standard=2)
@@ -180,7 +180,7 @@ PARAM_DEFINE_FLOAT(VT_ARSP_LP_GAIN, 0.3f);
  * @decimal 0
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_INT32(VT_TYPE, 0);
+PARAM_DEFINE_INT32(VT_TYPE, 0); //
 
 /**
  * Lock elevons in multicopter mode
@@ -190,7 +190,7 @@ PARAM_DEFINE_INT32(VT_TYPE, 0);
  * @boolean
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_INT32(VT_ELEV_MC_LOCK, 0);
+PARAM_DEFINE_INT32(VT_ELEV_MC_LOCK, 0); // //tiltrotor
 
 /**
  * Duration of a front transition
@@ -204,7 +204,7 @@ PARAM_DEFINE_INT32(VT_ELEV_MC_LOCK, 0);
  * @decimal 2
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_F_TRANS_DUR, 3.0f);
+PARAM_DEFINE_FLOAT(VT_F_TRANS_DUR, 3.0f); //tiltrotor
 
 /**
  * Duration of a back transition
@@ -218,7 +218,7 @@ PARAM_DEFINE_FLOAT(VT_F_TRANS_DUR, 3.0f);
  * @decimal 2
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_B_TRANS_DUR, 2.0f);
+PARAM_DEFINE_FLOAT(VT_B_TRANS_DUR, 2.0f); //tiltrotor
 
 /**
  * Transition blending airspeed
@@ -232,7 +232,7 @@ PARAM_DEFINE_FLOAT(VT_B_TRANS_DUR, 2.0f);
  * @decimal 2
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_ARSP_BLEND, 8.0f);
+PARAM_DEFINE_FLOAT(VT_ARSP_BLEND, 8.0f); //tiltrotor
 
 /**
  * Transition airspeed
@@ -246,7 +246,7 @@ PARAM_DEFINE_FLOAT(VT_ARSP_BLEND, 8.0f);
  * @decimal 2
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_ARSP_TRANS, 10.0f);
+PARAM_DEFINE_FLOAT(VT_ARSP_TRANS, 10.0f); //tiltrotor
 
 /**
  * Optimal recovery strategy for pitch-weak tailsitters
@@ -314,4 +314,4 @@ PARAM_DEFINE_INT32(VT_NAV_FORCE_VT, 1);
  * @max 200.0
  * @group VTOL Attitude Control
  */
-PARAM_DEFINE_FLOAT(VT_FW_MIN_ALT, 0.0f);
+PARAM_DEFINE_FLOAT(VT_FW_MIN_ALT, 0.0f); //

@@ -46,6 +46,8 @@
 #include <lib/mathlib/mathlib.h>
 #include <drivers/drv_hrt.h>
 
+// vtol 的特有参数
+// 通过 vtol_att_control_prams.c 中的设置读入
 struct Params {
 	int idle_pwm_mc;			// pwm value for idle in mc mode
 	int vtol_motor_count;		// number of motors
@@ -91,22 +93,22 @@ public:
 	/**
 	 * Update vtol state.
 	 */
-	virtual void update_vtol_state() = 0;
+	virtual void update_vtol_state() = 0; //tiltrotor
 
 	/**
 	 * Update transition state.
 	 */
-	virtual void update_transition_state() = 0;
+	virtual void update_transition_state() = 0; //vtol_type，tiltrotor
 
 	/**
 	 * Update multicopter state.
 	 */
-	virtual void update_mc_state();
+	virtual void update_mc_state(); //vtol_type，tiltrotor
 
 	/**
 	 * Update fixed wing state.
 	 */
-	virtual void update_fw_state();
+	virtual void update_fw_state(); //vtol_type，tiltrotor
 
 	/**
 	 * Update external state.
@@ -116,30 +118,30 @@ public:
 	/**
 	 * Write control values to actuator output topics.
 	 */
-	virtual void fill_actuator_outputs() = 0;
+	virtual void fill_actuator_outputs() = 0; //tiltrotor
 
 	/**
 	 * Special handling opportunity for the time right after transition to FW
 	 * before TECS is running.
 	 */
-	virtual void waiting_on_tecs() {};
+	virtual void waiting_on_tecs() {}; //tiltrotor
 
 	/**
 	 * Checks for fixed-wing failsafe condition and issues abort request if needed.
 	 */
-	void check_quadchute_condition();
+	void check_quadchute_condition(); //vtol_type
 
 	/**
 	 * Returns true if we're allowed to do a mode transition on the ground.
 	 */
-	bool can_transition_on_ground();
+	bool can_transition_on_ground(); //vtol_type
 
-	void set_idle_mc();
-	void set_idle_fw();
+	void set_idle_mc(); //vtol_type
+	void set_idle_fw(); //vtol_type
 
 	mode get_mode() {return _vtol_mode;};
 
-	virtual void parameters_update() = 0;
+	virtual void parameters_update() = 0; //tiltrotor
 
 protected:
 	VtolAttitudeControl *_attc;
@@ -166,20 +168,22 @@ protected:
 	struct tecs_status_s				*_tecs_status;
 	struct vehicle_land_detected_s			*_land_detected;
 
-	struct Params 					*_params;
+	struct Params 					*_params; // vtol 的通用参数
 
 	bool flag_idle_mc = true;		//false = "idle is set for fixed wing mode"; true = "idle is set for multicopter mode"
 
 	bool _pusher_active = false;
+	// 控制权重
 	float _mc_roll_weight = 1.0f;	// weight for multicopter attitude controller roll output
 	float _mc_pitch_weight = 1.0f;	// weight for multicopter attitude controller pitch output
 	float _mc_yaw_weight = 1.0f;	// weight for multicopter attitude controller yaw output
 	float _mc_throttle_weight = 1.0f;	// weight for multicopter throttle command. Used to avoid
-	// motors spinning up or cutting too fast whend doing transitions.
+	                                    // motors spinning up or cutting too fast when doing transitions.
+	// 前向过渡时所使用的推力值
 	float _thrust_transition = 0.0f;	// thrust value applied during a front transition (tailsitter & tiltrotor only)
 
 	bool _flag_was_in_trans_mode = false;	// true if mode has just switched to transition
-	hrt_abstime _trans_finished_ts = 0;
+	hrt_abstime _trans_finished_ts = 0; //过渡的完成时间
 	bool _tecs_running = false;
 	hrt_abstime _tecs_running_ts = 0;
 
