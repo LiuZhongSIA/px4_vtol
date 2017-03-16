@@ -58,16 +58,16 @@ Tiltrotor::Tiltrotor(VtolAttitudeControl *attc) :
 
 	_flag_was_in_trans_mode = false;
 
-	_params_handles_tiltrotor.front_trans_dur = param_find("VT_F_TRANS_DUR"); //在倾转的 Part1 过程停留的时间
-	_params_handles_tiltrotor.back_trans_dur = param_find("VT_B_TRANS_DUR"); //后向倾转时间长度
-	_params_handles_tiltrotor.tilt_mc = param_find("VT_TILT_MC"); //多轴模式下的倾转舵机的位置
-	_params_handles_tiltrotor.tilt_transition = param_find("VT_TILT_TRANS"); //过渡模式下的倾转舵机的位置
-	_params_handles_tiltrotor.tilt_fw = param_find("VT_TILT_FW"); //固定翼模式下的倾转舵机的位置
-	_params_handles_tiltrotor.airspeed_trans = param_find("VT_ARSP_TRANS"); //由 Part1 加速后，向固定翼模式切换的速度
-	_params_handles_tiltrotor.airspeed_blend_start = param_find("VT_ARSP_BLEND"); //开始混合使用两个控制器控制量的速度
-	_params_handles_tiltrotor.elevons_mc_lock = param_find("VT_ELEV_MC_LOCK"); //多轴模式下升降舵是不是锁住
-	_params_handles_tiltrotor.front_trans_dur_p2 = param_find("VT_TRANS_P2_DUR"); //在倾转的 Part2 过程停留的时间
-	_params_handles_tiltrotor.fw_motors_off = param_find("VT_FW_MOT_OFFID"); //固定翼模式下需要关闭的通道ID
+	_params_handles_tiltrotor.front_trans_dur = param_find("VT_F_TRANS_DUR"); //在倾转的 Part1 过程停留的时间（3,0～10）
+	_params_handles_tiltrotor.back_trans_dur = param_find("VT_B_TRANS_DUR"); //后向倾转时间长度（2,0～10）
+	_params_handles_tiltrotor.tilt_mc = param_find("VT_TILT_MC"); //多轴模式下的倾转舵机的位置（0,0～1）
+	_params_handles_tiltrotor.tilt_transition = param_find("VT_TILT_TRANS"); //过渡模式下的倾转舵机的位置（0.3,0～1）
+	_params_handles_tiltrotor.tilt_fw = param_find("VT_TILT_FW"); //固定翼模式下的倾转舵机的位置（1,0～1）
+	_params_handles_tiltrotor.airspeed_trans = param_find("VT_ARSP_TRANS"); //由 Part1 加速后，向固定翼模式切换的速度（10,0～30）
+	_params_handles_tiltrotor.airspeed_blend_start = param_find("VT_ARSP_BLEND"); //开始混合使用两个控制器控制量的速度（8,0～30）
+	_params_handles_tiltrotor.elevons_mc_lock = param_find("VT_ELEV_MC_LOCK"); //多轴模式下升降舵是不是锁住（似乎没有用）
+	_params_handles_tiltrotor.front_trans_dur_p2 = param_find("VT_TRANS_P2_DUR"); //在倾转的 Part2 过程停留的时间（0.5,1～5）
+	_params_handles_tiltrotor.fw_motors_off = param_find("VT_FW_MOT_OFFID"); //固定翼模式下需要关闭的通道ID（0,12345678）
 }
 
 Tiltrotor::~Tiltrotor()
@@ -328,6 +328,8 @@ void Tiltrotor::update_transition_state()
 		}
 
 		// do blending of mc and fw controls
+		// airspeed_blend_start + 1 = indicated_airspeed_m_s
+		// 所以达到速度 airspeed_blend_start 肯定发生在倾转过程的 Part1 中
 		// 滚转控制的权重，要么为0,要么为1
 		if (_airspeed->indicated_airspeed_m_s >= _params_tiltrotor.airspeed_blend_start) {
 			_mc_roll_weight = 0.0f;
