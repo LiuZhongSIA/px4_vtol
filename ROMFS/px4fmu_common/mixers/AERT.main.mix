@@ -24,7 +24,7 @@ motion using a Y  cable, the servos can be positioned reversed from one another.
 
 M: 1
 O:      10000  10000      0 -10000  10000
-S: 0 0  10000  10000      0 -10000  10000
+S: 0 0 -10000 -10000      0 -10000  10000
 
 Elevator mixer
 ------------
@@ -37,7 +37,7 @@ endpoints to suit.
 
 M: 1
 O:       10000   10000      0 -10000  10000
-S: 0 1  -10000  -10000      0 -10000  10000
+S: 0 1   10000   10000      0 -10000  10000
 
 Rudder mixer
 ------------

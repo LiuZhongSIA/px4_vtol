@@ -418,7 +418,7 @@ void Tiltrotor::fill_actuator_outputs()
 									_actuators_fw_in->control[actuator_controls_s::INDEX_THROTTLE];
 	} else {
 		_actuators_out_0->control[actuator_controls_s::INDEX_THROTTLE] =
-									_actuators_mc_in->control[actuator_controls_s::INDEX_THROTTLE];;
+									_actuators_mc_in->control[actuator_controls_s::INDEX_THROTTLE];
 	}
 
 	// 辅助制通道，控制舵机
