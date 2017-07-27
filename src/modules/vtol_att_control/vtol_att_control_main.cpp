@@ -46,6 +46,8 @@
  * @author Andreas Antener 	<andreas@uaventure.com>
  *
  */
+// Read 6
+
 #include "vtol_att_control_main.h"
 #include <systemlib/mavlink_log.h>
 
@@ -93,6 +95,8 @@ VtolAttitudeControl::VtolAttitudeControl() :
 	_vtol_vehicle_status_pub(nullptr),
 	_v_rates_sp_pub(nullptr),
 	_v_att_sp_pub(nullptr),
+
+	// 初始化变量
 	_transition_command(vtol_vehicle_status_s::VEHICLE_VTOL_STATE_MC), //命令：处于多轴模式
 	_abort_front_transition(false)
 
@@ -147,13 +151,10 @@ VtolAttitudeControl::VtolAttitudeControl() :
 	// 根据不同的飞行器类型，建立不同的类型变量
 	if (_params.vtol_type == vtol_type::TAILSITTER) {
 		_vtol_type = new Tailsitter(this);
-
 	} else if (_params.vtol_type == vtol_type::TILTROTOR) { //！！！
 		_vtol_type = new Tiltrotor(this);
-
 	} else if (_params.vtol_type == vtol_type::STANDARD) {
 		_vtol_type = new Standard(this);
-
 	} else {
 		_task_should_exit = true;
 	}
@@ -166,7 +167,7 @@ VtolAttitudeControl::~VtolAttitudeControl()
 {
 	if (_control_task != -1) {
 		/* task wakes up every 100ms or so at the longest */
-		_task_should_exit = true;
+		_task_should_exit = true; // 这个会导致直接跳出task_main中的打循环
 
 		/* wait for a second for the task to quit at our request */
 		unsigned i = 0;
@@ -489,6 +490,7 @@ void
 VtolAttitudeControl::handle_command()
 {
 	// update transition command if necessary
+	// 一个topic指令，应该是mavlink消息传过来的
 	if (_vehicle_cmd.command == vehicle_command_s::VEHICLE_CMD_DO_VTOL_TRANSITION) {
 		_transition_command = int(_vehicle_cmd.param1 + 0.5f);
 	}
@@ -533,6 +535,7 @@ VtolAttitudeControl::is_fixed_wing_requested()
  * Abort front transition
  * 终止
  */
+// 一般是因为飞行高度导致，在vtol_type中调用
 void
 VtolAttitudeControl::abort_front_transition(const char *reason)
 {
@@ -636,12 +639,12 @@ void VtolAttitudeControl::fill_fw_att_rates_sp()
 }
 
 // 发布角度期望值
+// 发布的_v_att_sp实际上是刚刚订阅的
 void VtolAttitudeControl::publish_att_sp()
 {
 	if (_v_att_sp_pub != nullptr) {
 		/* publish the attitude setpoint */
 		orb_publish(ORB_ID(vehicle_attitude_setpoint), _v_att_sp_pub, &_v_att_sp);
-
 	} else {
 		/* advertise and publish */
 		_v_att_sp_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint), &_v_att_sp);
@@ -664,10 +667,10 @@ void VtolAttitudeControl::task_main()
 	/* do subscriptions */
 	// 订阅句柄赋值
 	_v_att_sp_sub          = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
-	_mc_virtual_att_sp_sub = orb_subscribe(ORB_ID(mc_virtual_attitude_setpoint)); //这个4个topic没有找到在哪里发布的？？？
-	_fw_virtual_att_sp_sub = orb_subscribe(ORB_ID(fw_virtual_attitude_setpoint)); //？？？
-	_mc_virtual_v_rates_sp_sub = orb_subscribe(ORB_ID(mc_virtual_rates_setpoint)); //？？？
-	_fw_virtual_v_rates_sp_sub = orb_subscribe(ORB_ID(fw_virtual_rates_setpoint)); //？？？
+	_mc_virtual_att_sp_sub = orb_subscribe(ORB_ID(mc_virtual_attitude_setpoint));
+	_fw_virtual_att_sp_sub = orb_subscribe(ORB_ID(fw_virtual_attitude_setpoint));
+	_mc_virtual_v_rates_sp_sub = orb_subscribe(ORB_ID(mc_virtual_rates_setpoint));
+	_fw_virtual_v_rates_sp_sub = orb_subscribe(ORB_ID(fw_virtual_rates_setpoint));
 	_v_att_sub             = orb_subscribe(ORB_ID(vehicle_attitude));
 	_v_att_sp_sub          = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
 	_v_control_mode_sub    = orb_subscribe(ORB_ID(vehicle_control_mode));
@@ -680,7 +683,7 @@ void VtolAttitudeControl::task_main()
 	_vehicle_cmd_sub	   = orb_subscribe(ORB_ID(vehicle_command));
 	_tecs_status_sub = orb_subscribe(ORB_ID(tecs_status));
 	_land_detected_sub = orb_subscribe(ORB_ID(vehicle_land_detected));
-	// 多轴与固定翼控制器生成的虚拟控制量
+	// 多轴与固定翼控制器生成的名义控制量
 	_actuator_inputs_mc    = orb_subscribe(ORB_ID(actuator_controls_virtual_mc));
 	_actuator_inputs_fw    = orb_subscribe(ORB_ID(actuator_controls_virtual_fw));
 
@@ -850,7 +853,7 @@ void VtolAttitudeControl::task_main()
 			_vtol_type->update_external_state();
 		}
 
-		publish_att_sp(); //发布姿态期望，要么是多轴的，要么是固定翼的
+		publish_att_sp(); //发布姿态期望
 		// ！！！
 		// vtol 的控制量
 		_vtol_type->fill_actuator_outputs();
@@ -861,7 +864,6 @@ void VtolAttitudeControl::task_main()
 		    _v_control_mode.flag_control_manual_enabled) {
 			if (_actuators_0_pub != nullptr) { //主控制通道的控制量
 				orb_publish(ORB_ID(actuator_controls_0), _actuators_0_pub, &_actuators_out_0);
-
 			} else {
 				_actuators_0_pub = orb_advertise(ORB_ID(actuator_controls_0), &_actuators_out_0);
 			}
@@ -881,6 +883,8 @@ void VtolAttitudeControl::task_main()
 		} else {
 			_v_rates_sp_pub = orb_advertise(ORB_ID(vehicle_rates_setpoint), &_v_rates_sp);
 		}
+		// vtol的控制仅仅处于姿态环，所以这里发布的姿态期望，实际上就是遥控器设定的
+		// 而姿态角速度期望由于采用的控制器不同，要么发布多轴的，要么发布固定翼的
 	}
 
 	warnx("exit");
@@ -923,7 +927,7 @@ int vtol_att_control_main(int argc, char *argv[])
 			return 0;
 		}
 
-		// 建立一个新的 class，首先会运行构造函数 VtolAttitudeControl::VtolAttitudeControl
+		// 建立一个新的 class，首先会运行“构造函数” VtolAttitudeControl::VtolAttitudeControl
 		VTOL_att_control::g_control = new VtolAttitudeControl;
 
 		if (VTOL_att_control::g_control == nullptr) {
@@ -948,6 +952,7 @@ int vtol_att_control_main(int argc, char *argv[])
 			return 0;
 		}
 
+		// 删除一个class，会运行析构函数
 		delete VTOL_att_control::g_control;
 		VTOL_att_control::g_control = nullptr;
 		return 0;

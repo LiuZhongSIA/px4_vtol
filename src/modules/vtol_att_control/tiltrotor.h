@@ -37,6 +37,7 @@
 * @author Roman Bapst 		<bapstroman@gmail.com>
 *
 */
+// Read 4
 
 #ifndef TILTROTOR_H
 #define TILTROTOR_H
@@ -88,7 +89,7 @@ private:
 		param_t fw_motors_off;
 	} _params_handles_tiltrotor;
 
-	// 集中倾转模式
+	// 倾转模式
 	enum vtol_mode {
 		MC_MODE = 0,			/**< vtol is in multicopter mode */
 		TRANSITION_FRONT_P1,	/**< vtol is in front transition part 1 mode */

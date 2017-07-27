@@ -39,6 +39,7 @@
 * @author Andreas Antener	<andreas@uaventure.com>
 *
 */
+// Read 2
 
 #ifndef VTOL_TYPE_H
 #define VTOL_TYPE_H
@@ -145,7 +146,7 @@ public:
 
 protected:
 	VtolAttitudeControl *_attc;
-	mode _vtol_mode;
+	mode _vtol_mode; //一个简单的模式表示
 
 	struct vehicle_attitude_s		*_v_att;				//vehicle attitude
 	struct vehicle_attitude_setpoint_s	*_v_att_sp;			//vehicle attitude setpoint

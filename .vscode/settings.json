@@ -1,0 +1,20 @@
+{
+    "files.associations": {
+        "params.c": "cpp",
+        "romfs_main.c": "cpp",
+        "osmocon.c": "cpp",
+        "imx_spi.c": "cpp",
+        "lm_ssi.c": "cpp",
+        "lpc17_spi.c": "cpp",
+        "lpc17_ssp.c": "cpp",
+        "lpc31_spi.c": "cpp",
+        "lpc43_spi.c": "cpp",
+        "lpc43_ssp.c": "cpp",
+        "sam_spi.c": "cpp",
+        "stm32_spi.c": "cpp",
+        "stm32_tim.c": "cpp",
+        "up_spi.c": "cpp",
+        "pic32mx-spi.c": "cpp",
+        "mmcsd_sdio.c": "cpp"
+    }
+}

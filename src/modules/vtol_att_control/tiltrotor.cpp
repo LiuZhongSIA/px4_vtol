@@ -37,6 +37,7 @@
  * @author Roman Bapst 		<bapstroman@gmail.com>
  *
 */
+// Read 5
 
 #include "tiltrotor.h"
 #include "vtol_att_control_main.h"
@@ -49,7 +50,7 @@ Tiltrotor::Tiltrotor(VtolAttitudeControl *attc) :
 	_tilt_control(0.0f),
 	_min_front_trans_dur(0.5f)
 {
-	_vtol_schedule.flight_mode = MC_MODE;
+	_vtol_schedule.flight_mode = MC_MODE; //开始默认在多轴模式下
 	_vtol_schedule.transition_start = 0;
 
 	_mc_roll_weight = 1.0f;
@@ -58,16 +59,16 @@ Tiltrotor::Tiltrotor(VtolAttitudeControl *attc) :
 
 	_flag_was_in_trans_mode = false;
 
-	_params_handles_tiltrotor.front_trans_dur = param_find("VT_F_TRANS_DUR"); //在倾转的 Part1 过程停留的时间（3,0～10）
-	_params_handles_tiltrotor.back_trans_dur = param_find("VT_B_TRANS_DUR"); //后向倾转时间长度（2,0～10）
-	_params_handles_tiltrotor.tilt_mc = param_find("VT_TILT_MC"); //多轴模式下的倾转舵机的位置（0,0～1）
-	_params_handles_tiltrotor.tilt_transition = param_find("VT_TILT_TRANS"); //过渡模式下的倾转舵机的位置（0.3,0～1）
-	_params_handles_tiltrotor.tilt_fw = param_find("VT_TILT_FW"); //固定翼模式下的倾转舵机的位置（1,0～1）
-	_params_handles_tiltrotor.airspeed_trans = param_find("VT_ARSP_TRANS"); //由 Part1 加速后，向固定翼模式切换的速度（10,0～30）
-	_params_handles_tiltrotor.airspeed_blend_start = param_find("VT_ARSP_BLEND"); //开始混合使用两个控制器控制量的速度（8,0～30）
-	_params_handles_tiltrotor.elevons_mc_lock = param_find("VT_ELEV_MC_LOCK"); //多轴模式下升降舵是不是锁住（似乎没有用）
-	_params_handles_tiltrotor.front_trans_dur_p2 = param_find("VT_TRANS_P2_DUR"); //在倾转的 Part2 过程停留的时间（0.5,1～5）
-	_params_handles_tiltrotor.fw_motors_off = param_find("VT_FW_MOT_OFFID"); //固定翼模式下需要关闭的通道ID（0,12345678）
+	_params_handles_tiltrotor.front_trans_dur = param_find("VT_F_TRANS_DUR"); //在倾转的 Part1 过程停留的时间（3,0～10）//vtol_att_control_params
+	_params_handles_tiltrotor.back_trans_dur = param_find("VT_B_TRANS_DUR"); //后向倾转时间长度（2,0～10）//vtol_att_control_params
+	_params_handles_tiltrotor.tilt_mc = param_find("VT_TILT_MC"); //多轴模式下的倾转舵机的位置（0,0～1）//tiltrotor_params
+	_params_handles_tiltrotor.tilt_transition = param_find("VT_TILT_TRANS"); //过渡模式下的倾转舵机的位置（0.3,0～1）//tiltrotor_params
+	_params_handles_tiltrotor.tilt_fw = param_find("VT_TILT_FW"); //固定翼模式下的倾转舵机的位置（1,0～1）//tiltrotor_params
+	_params_handles_tiltrotor.airspeed_trans = param_find("VT_ARSP_TRANS"); //由 Part1 加速后，向固定翼模式切换的速度（10,0～30）//vtol_att_control_params
+	_params_handles_tiltrotor.airspeed_blend_start = param_find("VT_ARSP_BLEND"); //开始混合使用两个控制器控制量的速度（8,0～30）//vtol_att_control_params
+	_params_handles_tiltrotor.elevons_mc_lock = param_find("VT_ELEV_MC_LOCK"); //多轴模式下升降舵是不是锁住（似乎没有用）//vtol_att_control_params
+	_params_handles_tiltrotor.front_trans_dur_p2 = param_find("VT_TRANS_P2_DUR"); //在倾转的 Part2 过程停留的时间（0.5,1～5）//tiltrotor_params
+	_params_handles_tiltrotor.fw_motors_off = param_find("VT_FW_MOT_OFFID"); //固定翼模式下需要关闭的通道ID（0,12345678）//tiltrotor_params
 }
 
 Tiltrotor::~Tiltrotor()
@@ -261,6 +262,7 @@ void Tiltrotor::update_vtol_state()
 }
 
 // vtol_att_control_main 中，如果处于多轴模式，以此函数更新状态
+// 固定控制量权重和旋翼倾转轴
 void Tiltrotor::update_mc_state()
 {
 	VtolType::update_mc_state(); //读取多轴姿态期望值，多轴姿态权重置1
@@ -270,7 +272,7 @@ void Tiltrotor::update_mc_state()
 	_tilt_control = _params_tiltrotor.tilt_mc;
 
 	// enable rear motors
-	// 尾部的旋翼是需要使能的
+	// 尾部的旋翼需要首次使能
 	if (_rear_motors != ENABLED) {
 		set_rear_motor_state(ENABLED);
 	}
@@ -284,6 +286,7 @@ void Tiltrotor::update_mc_state()
 }
 
 // vtol_att_control_main 中，如果处于固定翼模式，以此函数更新状态
+// 固定控制量权重和旋翼倾转轴
 void Tiltrotor::update_fw_state()
 {
 	VtolType::update_fw_state(); //读取固定翼姿态期望值，多轴姿态权重置0，TECS是否使用，是否终止前向倾转
@@ -293,7 +296,7 @@ void Tiltrotor::update_fw_state()
 	_tilt_control = _params_tiltrotor.tilt_fw;
 
 	// disable rear motors
-	// 尾部的旋翼禁能
+	// 尾部的旋翼需要首次禁能
 	if (_rear_motors != DISABLED) {
 		set_rear_motor_state(DISABLED);
 	}
@@ -309,6 +312,7 @@ void Tiltrotor::update_fw_state()
 // 当处于过渡模式时，使用此函数更新状态
 void Tiltrotor::update_transition_state()
 {
+	// 这个变量没有什么作用
 	if (!_flag_was_in_trans_mode) {
 		// save desired heading for transition and last thrust value
 		_flag_was_in_trans_mode = true;
@@ -328,7 +332,7 @@ void Tiltrotor::update_transition_state()
 		}
 
 		// do blending of mc and fw controls
-		// airspeed_blend_start + 1 = indicated_airspeed_m_s
+		// airspeed_blend_start + 1 =< indicated_airspeed_m_s
 		// 所以达到速度 airspeed_blend_start 肯定发生在倾转过程的 Part1 中
 		// 滚转控制的权重，要么为0,要么为1
 		if (_airspeed->indicated_airspeed_m_s >= _params_tiltrotor.airspeed_blend_start) {
@@ -340,7 +344,6 @@ void Tiltrotor::update_transition_state()
 
 		// disable mc yaw control once the plane has picked up speed
 		_mc_yaw_weight = 1.0f;
-
 		if (_airspeed->indicated_airspeed_m_s > ARSP_YAW_CTRL_DISABLE) {
 			_mc_yaw_weight = 0.0f;
 		}
@@ -460,32 +463,29 @@ void Tiltrotor::set_rear_motor_state(rear_motor_state state)
 		break;
 	}
 
-	int ret;
-	unsigned servo_count;
 	const char *dev = PWM_OUTPUT0_DEVICE_PATH;  //设备名称：/dev/pwm_output0
 	int fd = px4_open(dev, 0); //打开设备
-
 	if (fd < 0) {
 		PX4_WARN("can't open %s", dev);
 	}
 
-	ret = px4_ioctl(fd, PWM_SERVO_GET_COUNT, (unsigned long)&servo_count);
+	// 要写入PWM口的数量？
+	// 但是并没有赋值
+	unsigned servo_count;
+	int ret = px4_ioctl(fd, PWM_SERVO_GET_COUNT, (unsigned long)&servo_count);
+
 	struct pwm_output_values pwm_max_values;
 	memset(&pwm_max_values, 0, sizeof(pwm_max_values));
-
 	for (int i = 0; i < _params->vtol_motor_count; i++) {
 		if (is_motor_off_channel(i)) {
 			pwm_max_values.values[i] = pwm_value;
-
 		} else {
 			pwm_max_values.values[i] = PWM_DEFAULT_MAX;
 		}
 
 		pwm_max_values.channel_count = _params->vtol_motor_count;
 	}
-
 	ret = px4_ioctl(fd, PWM_SERVO_SET_MAX_PWM, (long unsigned int)&pwm_max_values);
-
 	if (ret != OK) {PX4_WARN("failed setting max values");}
 
 	px4_close(fd);

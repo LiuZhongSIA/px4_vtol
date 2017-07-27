@@ -38,12 +38,14 @@
 * @author Andreas Antener	<andreas@uaventure.com>
 *
 */
+// Read 3
 
 #include "vtol_type.h"
 #include "drivers/drv_pwm_output.h"
 #include <px4_defines.h>
 #include "vtol_att_control_main.h"
-// 注意 Tiltrotor 是 vtol_type 的继承
+// 注意: Tiltrotor 是 vtol_type 的继承
+//      其他结构飞行器的class也是vtol_type 的继承
 
 // 构造函数
 VtolType::VtolType(VtolAttitudeControl *att_controller) :
@@ -88,31 +90,29 @@ void VtolType::set_idle_mc()
 {
 	const char *dev = PWM_OUTPUT0_DEVICE_PATH; //设备名称：/dev/pwm_output0
 	int fd = px4_open(dev, 0); //打开设备
-
 	if (fd < 0) {
 		PX4_WARN("can't open %s", dev);
 	}
 
+	// 要写入PWM口的数量？
+	// 但是并没有赋值
 	unsigned servo_count;
 	int ret = px4_ioctl(fd, PWM_SERVO_GET_COUNT, (unsigned long)&servo_count);
+
 	unsigned pwm_value = _params->idle_pwm_mc; //读取设置的参数
 	struct pwm_output_values pwm_values;
 	memset(&pwm_values, 0, sizeof(pwm_values));
-
 	for (int i = 0; i < _params->vtol_motor_count; i++) {
 		pwm_values.values[i] = pwm_value; //赋值
 		pwm_values.channel_count++;
 	}
-
 	// 将设置的参数写入
 	ret = px4_ioctl(fd, PWM_SERVO_SET_MIN_PWM, (long unsigned int)&pwm_values);
-
 	if (ret != OK) {
 		PX4_WARN("failed setting min values");
 	}
 
 	px4_close(fd);
-
 	flag_idle_mc = true;
 }
 
@@ -124,23 +124,18 @@ void VtolType::set_idle_fw()
 {
 	const char *dev = PWM_OUTPUT0_DEVICE_PATH;
 	int fd = px4_open(dev, 0);
-
 	if (fd < 0) {
 		PX4_WARN("can't open %s", dev);
 	}
 
 	struct pwm_output_values pwm_values;
-
 	memset(&pwm_values, 0, sizeof(pwm_values));
-
 	for (int i = 0; i < _params->vtol_motor_count; i++) {
-
 		pwm_values.values[i] = PWM_MOTOR_OFF; //固定翼模式下电机是不转的
 		pwm_values.channel_count++;
 	}
-
+	// 将设置的参数写入
 	int ret = px4_ioctl(fd, PWM_SERVO_SET_MIN_PWM, (long unsigned int)&pwm_values);
-
 	if (ret != OK) {
 		PX4_WARN("failed setting min values");
 	}
@@ -182,7 +177,7 @@ void VtolType::update_fw_state()
 	}
 	// TECS didn't publish yet or the position controller didn't publish yet AFTER tecs
 	// only wait on TECS we're in a mode where it is actually running
-	// 当TECS没有使用时，或者没有最新的更新，或者在定高模式时，保持高度
+	// 当TECS没有使用时，或者没有最新的更新，且在定高模式时，保持高度
 	if ((!_tecs_running || (_tecs_running && _fw_virtual_att_sp->timestamp <= _tecs_running_ts))
 	    && _v_control_mode->flag_control_altitude_enabled) {
 
