@@ -897,7 +897,7 @@ FixedwingAttitudeControl::task_main()
 					int instance;
 					orb_publish_auto(_attitude_setpoint_id, &_attitude_sp_pub, &_att_sp, &instance, ORB_PRIO_DEFAULT);
 				}
-				// 姿态期望可能是上面杆量给的，也可能是某个线程发布的
+				// 姿态期望可能是上面杆量给的，也可能是某个线程发布的（位置控制部分）
 				roll_sp = _att_sp.roll_body;
 				pitch_sp = _att_sp.pitch_body;
 				yaw_sp = _att_sp.yaw_body;
@@ -962,9 +962,13 @@ FixedwingAttitudeControl::task_main()
 				_yaw_ctrl.set_coordinated_method(_parameters.y_coordinated_method);
 				/* Run attitude controllers */
 				if (PX4_ISFINITE(roll_sp) && PX4_ISFINITE(pitch_sp)) {
+					// 利用时间常数进行姿态的比例控制
 					_roll_ctrl.control_attitude(control_input);
+					// 利用时间常数进行姿态的比例控制
 					_pitch_ctrl.control_attitude(control_input);
+					// 根据协调转弯的设定，生成姿态角速度期望
 					_yaw_ctrl.control_attitude(control_input); //runs last, because is depending on output of roll and pitch attitude
+					// 利用时间常数进行姿态的比例控制
 					_wheel_ctrl.control_attitude(control_input);
 
 					/* Update input data for rate controllers */
@@ -974,7 +978,7 @@ FixedwingAttitudeControl::task_main()
 
 					/* Run attitude RATE controllers which need the desired attitudes from above, add trim */
 					// 滚转
-					float roll_u = _roll_ctrl.control_bodyrate(control_input);
+					float roll_u = _roll_ctrl.control_bodyrate(control_input); //前馈、比例、积分控制
 					_actuators.control[actuator_controls_s::INDEX_ROLL] = (PX4_ISFINITE(roll_u)) ?
 					                                                       roll_u + _parameters.trim_roll : _parameters.trim_roll;
 					if (!PX4_ISFINITE(roll_u)) { //如果不是有限的
@@ -985,7 +989,8 @@ FixedwingAttitudeControl::task_main()
 						}
 					}
 					// 俯仰
-					float pitch_u = _pitch_ctrl.control_bodyrate(control_input);
+					float pitch_u = _pitch_ctrl.control_bodyrate(control_input); //利用滚转角进行转向补偿
+					                                                             //前馈、比例、积分控制
 					_actuators.control[actuator_controls_s::INDEX_PITCH] = (PX4_ISFINITE(pitch_u)) ?
 					                                                        pitch_u + _parameters.trim_pitch : _parameters.trim_pitch;
 					if (!PX4_ISFINITE(pitch_u)) {
