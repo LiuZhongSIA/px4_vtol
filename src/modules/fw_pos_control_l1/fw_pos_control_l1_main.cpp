@@ -34,8 +34,8 @@
 
 /**
  * @file fw_pos_control_l1_main.c
- * Implementation of a generic position controller based on the L1 norm. Outputs a bank / roll
- * angle, equivalent to a lateral motion (for copters and rovers).
+ * Implementation of a generic（一般的） position controller based on the L1 norm（基于L1范数）.
+ * Outputs a bank / roll angle, equivalent to a lateral motion (for copters and rovers).
  *
  * Original publication for horizontal control class:
  *    S. Park, J. Deyst, and J. P. How, "A New Nonlinear Guidance Logic for Trajectory Tracking,"
@@ -67,12 +67,12 @@
 #include <px4_tasks.h>
 #include <px4_posix.h>
 
-#include "landingslope.h"
+#include "landingslope.h" //降落倾斜
 
 #include <arch/board/board.h>
 #include <drivers/drv_accel.h>
 #include <drivers/drv_hrt.h>
-#include <ecl/l1/ecl_l1_pos_controller.h>
+#include <ecl/l1/ecl_l1_pos_controller.h> //用到了lib中的类
 #include <external_lgpl/tecs/tecs.h>
 #include <geo/geo.h>
 #include <launchdetection/LaunchDetector.h>
@@ -110,7 +110,7 @@ static int	_control_task = -1;			/**< task handle for sensor task */
 #define HDG_HOLD_YAWRATE_THRESH 	0.15f 		// max yawrate at which plane locks yaw for heading hold mode
 #define HDG_HOLD_MAN_INPUT_THRESH 	0.01f 		// max manual roll/yaw input from user which does not change the locked heading
 #define T_ALT_TIMEOUT 				1 			// time after which we abort landing if terrain estimate is not valid
-#define THROTTLE_THRESH 0.05f 	///< max throttle from user which will not lead to motors spinning up in altitude controlled modes
+#define THROTTLE_THRESH 0.05f 					///< max throttle from user which will not lead to motors spinning up in altitude controlled modes
 #define MANUAL_THROTTLE_CLIMBOUT_THRESH 0.85f	///< a throttle / pitch input above this value leads to the system switching to climbout mode
 #define ALTHOLD_EPV_RESET_THRESH 5.0f
 
@@ -130,113 +130,100 @@ public:
 	 * Constructor
 	 */
 	FixedwingPositionControl();
-
 	/**
 	 * Destructor, also kills the sensors task.
 	 */
 	~FixedwingPositionControl();
-
 	// prevent copying
 	FixedwingPositionControl(const FixedwingPositionControl &) = delete;
 	FixedwingPositionControl operator=(const FixedwingPositionControl &other) = delete;
-
 	/**
 	 * Start the sensors task.
 	 *
 	 * @return	OK on success.
 	 */
 	static int	start();
-
 	/**
 	 * Task status
 	 *
 	 * @return	true if the mainloop is running
 	 */
 	bool		task_running() { return _task_running; }
-
 private:
-	orb_advert_t	_mavlink_log_pub;
-
 	bool		_task_should_exit;		/**< if true, sensor task should exit */
 	bool		_task_running;			/**< if true, task is running in its mainloop */
 
+	// 发布 or 订阅
+	orb_advert_t	_mavlink_log_pub;
 	int		_global_pos_sub;
 	int		_pos_sp_triplet_sub;
-	int		_ctrl_state_sub;			/**< control state subscription */
-	int		_control_mode_sub;		/**< control mode subscription */
-	int		_vehicle_command_sub;		/**< vehicle command subscription */
-	int		_vehicle_status_sub;		/**< vehicle status subscription */
-	int		_vehicle_land_detected_sub;	/**< vehicle land detected subscription */
-	int		_params_sub;			/**< notification of parameter updates */
-	int		_manual_control_sub;		/**< notification of manual control updates */
-	int		_sensor_combined_sub;		/**< for body frame accelerations */
-
+	int		_ctrl_state_sub;				/**< control state subscription */
+	int		_control_mode_sub;				/**< control mode subscription */
+	int		_vehicle_command_sub;			/**< vehicle command subscription */
+	int		_vehicle_status_sub;			/**< vehicle status subscription */
+	int		_vehicle_land_detected_sub;		/**< vehicle land detected subscription */
+	int		_params_sub;					/**< notification of parameter updates */
+	int		_manual_control_sub;			/**< notification of manual control updates */
+	int		_sensor_combined_sub;			/**< for body frame accelerations */
 	orb_advert_t	_attitude_sp_pub;		/**< attitude setpoint */
 	orb_advert_t	_tecs_status_pub;		/**< TECS status publication */
-	orb_advert_t	_fw_pos_ctrl_status_pub;		/**< navigation capabilities publication */
-
-	orb_id_t _attitude_setpoint_id;
-
+	orb_advert_t	_fw_pos_ctrl_status_pub;/**< navigation capabilities publication */
+	orb_id_t 		_attitude_setpoint_id;
 	struct control_state_s				_ctrl_state;			/**< control state */
-	struct vehicle_attitude_setpoint_s		_att_sp;			/**< vehicle attitude setpoint */
-	struct fw_pos_ctrl_status_s		_fw_pos_ctrl_status;		/**< navigation capabilities */
-	struct manual_control_setpoint_s		_manual;			/**< r/c channel data */
-	struct vehicle_control_mode_s			_control_mode;			/**< control mode */
+	struct vehicle_attitude_setpoint_s	_att_sp;				/**< vehicle attitude setpoint */
+	struct fw_pos_ctrl_status_s			_fw_pos_ctrl_status;	/**< navigation capabilities */
+	struct manual_control_setpoint_s	_manual;				/**< r/c channel data */
+	struct vehicle_control_mode_s		_control_mode;			/**< control mode */
 	struct vehicle_command_s			_vehicle_command;		/**< vehicle commands */
 	struct vehicle_status_s				_vehicle_status;		/**< vehicle status */
-	struct vehicle_land_detected_s			_vehicle_land_detected;		/**< vehicle land detected */
-	struct vehicle_global_position_s		_global_pos;			/**< global vehicle position */
-	struct position_setpoint_triplet_s		_pos_sp_triplet;		/**< triplet of mission items */
+	struct vehicle_land_detected_s		_vehicle_land_detected;	/**< vehicle land detected */
+	struct vehicle_global_position_s	_global_pos;			/**< global vehicle position */
+	struct position_setpoint_triplet_s	_pos_sp_triplet;		/**< triplet of mission items */
 	struct sensor_combined_s			_sensor_combined;		/**< for body frame accelerations */
 
 	perf_counter_t	_loop_perf;			/**< loop performance counter */
 
-	float	_hold_alt;				/**< hold altitude for altitude mode */
-	float	_takeoff_ground_alt;				/**< ground altitude at which plane was launched */
+	// 高度、机头保持
+	float	_hold_alt;					/**< hold altitude for altitude mode */
+	float	_takeoff_ground_alt;		/**< ground altitude at which plane was launched */
 	float	_hdg_hold_yaw;				/**< hold heading for velocity mode */
 	bool	_hdg_hold_enabled;			/**< heading hold enabled */
 	bool	_yaw_lock_engaged;			/**< yaw is locked for heading hold */
 	float	_althold_epv;				/**< the position estimate accuracy when engaging alt hold */
-	bool	_was_in_deadband;				/**< wether the last stick input was in althold deadband */
+	bool	_was_in_deadband;			/**< whether the last stick input was in althold deadband（死区） */
 	struct position_setpoint_s _hdg_hold_prev_wp;	/**< position where heading hold started */
 	struct position_setpoint_s _hdg_hold_curr_wp;	/**< position to which heading hold flies */
-	hrt_abstime _control_position_last_called; /**<last call of control_position  */
+	hrt_abstime _control_position_last_called; 		/**<last call of control_position  */
 
-	/* Landing */
+	/* Landing */ //降落
 	bool _land_noreturn_horizontal;
 	bool _land_noreturn_vertical;
 	bool _land_stayonground;
 	bool _land_motor_lim;
 	bool _land_onslope;
 	bool _land_useterrain;
-
-	Landingslope _landingslope;
-
+	Landingslope _landingslope; //降落倾斜
 	hrt_abstime _time_started_landing;	//*< time at which landing started */
-
-	float _t_alt_prev_valid;	//**< last terrain estimate which was valid */
-	hrt_abstime _time_last_t_alt; //*< time at which we had last valid terrain alt */
-
-	float _flare_height;					//*< estimated height to ground at which flare started */
+	float _t_alt_prev_valid;			//*< last terrain estimate which was valid */
+	hrt_abstime _time_last_t_alt; 		//*< time at which we had last valid terrain alt */
+	float _flare_height;				//*< estimated height to ground at which flare started */
 	float _flare_curve_alt_rel_last;
-	float _target_bearing;				//*< estimated height to ground at which flare started */
-
-	bool _was_in_air;	/**< indicated wether the plane was in the air in the previous interation*/
-	hrt_abstime _time_went_in_air;	/**< time at which the plane went in the air */
+	float _target_bearing;
+	bool _was_in_air;					/**< indicated wether the plane was in the air in the previous interation*/
+	hrt_abstime _time_went_in_air;		/**< time at which the plane went in the air */
 
 	/* Takeoff launch detection and runway */
 	launchdetection::LaunchDetector _launchDetector;
 	LaunchDetectionResult _launch_detection_state;
-
 	runwaytakeoff::RunwayTakeoff _runway_takeoff;
 
-	bool _last_manual;				///< true if the last iteration was in manual mode (used to determine when a reset is needed)
+	bool _last_manual;	///< true if the last iteration was in manual mode (used to determine when a reset is needed)
 
 	/* throttle and airspeed states */
 	float _airspeed_error;				///< airspeed error to setpoint in m/s
 	bool _airspeed_valid;				///< flag if a valid airspeed estimate exists
-	uint64_t _airspeed_last_received;			///< last time airspeed was received. Used to detect timeouts.
-	float _groundspeed_undershoot;			///< ground speed error to min. speed in m/s
+	uint64_t _airspeed_last_received;	///< last time airspeed was received. Used to detect timeouts.
+	float _groundspeed_undershoot;		///< ground speed error to min. speed in m/s
 	bool _global_pos_valid;				///< global position is valid
 	math::Matrix<3, 3> _R_nb;			///< current attitude
 	float _roll;
@@ -252,8 +239,8 @@ private:
 	uint8_t _pos_reset_counter;		// captures the number of times the estimator has reset the horizontal position
 	uint8_t _alt_reset_counter;		// captures the number of times the estimator has reset the altitude state
 
-	ECL_L1_Pos_Controller				_l1_control;
-	TECS						_tecs;
+	ECL_L1_Pos_Controller	_l1_control; //L1范数控制
+	TECS					_tecs; //能量控制
 	enum FW_POSCTRL_MODE {
 		FW_POSCTRL_MODE_AUTO,
 		FW_POSCTRL_MODE_POSITION,
@@ -315,11 +302,8 @@ private:
 		float land_airspeed_scale;
 
 		int vtol_type;
-
 	} _parameters;			/**< local copies of interesting parameters */
-
 	struct {
-
 		param_t l1_period;
 		param_t l1_damping;
 
@@ -373,65 +357,53 @@ private:
 		param_t land_airspeed_scale;
 
 		param_t vtol_type;
-
 	} _parameter_handles;		/**< handles for interesting parameters */
-
 
 	/**
 	 * Update our local parameter cache.
 	 */
 	int		parameters_update();
-
 	/**
 	 * Update control outputs
 	 *
 	 */
-	void		control_update();
-
+	void	control_update();
 	/**
 	 * Check for changes in control mode
 	 */
-	void		vehicle_control_mode_poll();
-
+	void	vehicle_control_mode_poll();
 	/**
 	 * Check for new in vehicle commands
 	 */
-	void		vehicle_command_poll();
-
+	void	vehicle_command_poll();
 	/**
 	 * Check for changes in vehicle status.
 	 */
-	void		vehicle_status_poll();
-
+	void	vehicle_status_poll();
 	/**
 	 * Check for changes in vehicle land detected.
 	 */
-	void		vehicle_land_detected_poll();
-
+	void	vehicle_land_detected_poll();
 	/**
 	 * Check for manual setpoint updates.
 	 */
-	bool		vehicle_manual_control_setpoint_poll();
-
+	bool	vehicle_manual_control_setpoint_poll();
 	/**
 	 * Check for changes in control state.
 	 */
-	void		control_state_poll();
-
+	void	control_state_poll();
 	/**
 	 * Check for accel updates.
 	 */
-	void		vehicle_sensor_combined_poll();
-
+	void	vehicle_sensor_combined_poll();
 	/**
 	 * Check for set triplet updates.
 	 */
-	void		vehicle_setpoint_poll();
-
+	void	vehicle_setpoint_poll();
 	/**
 	 * Publish navigation capabilities
 	 */
-	void		fw_pos_ctrl_status_publish();
+	void	fw_pos_ctrl_status_publish();
 
 	/**
 	 * Get a new waypoint based on heading and distance from current position
@@ -441,30 +413,35 @@ private:
 	 * @param waypoint_prev the waypoint at the current position
 	 * @param waypoint_next the waypoint in the heading direction
 	 */
-	void		get_waypoint_heading_distance(float heading, float distance,
-			struct position_setpoint_s &waypoint_prev, struct position_setpoint_s &waypoint_next, bool flag_init);
+	// 得到新的航迹点
+	void	get_waypoint_heading_distance(float heading, float distance,
+			                              struct position_setpoint_s &waypoint_prev,
+										  struct position_setpoint_s &waypoint_next,
+										  bool flag_init);
 
 	/**
 	 * Return the terrain estimate during landing: uses the wp altitude value or the terrain estimate if available
 	 */
-	float		get_terrain_altitude_landing(float land_setpoint_alt, const struct vehicle_global_position_s &global_pos);
-
+	// 降落时的地形估计
+	float	get_terrain_altitude_landing(float land_setpoint_alt,
+	                                     const struct vehicle_global_position_s &global_pos);
 	/**
 	 * Return the terrain estimate during takeoff or takeoff_alt if terrain estimate is not available
 	 */
-	float		get_terrain_altitude_takeoff(float takeoff_alt, const struct vehicle_global_position_s &global_pos);
+	// 起飞时的地形估计
+	float	get_terrain_altitude_takeoff(float takeoff_alt,
+	                                     const struct vehicle_global_position_s &global_pos);
 
 	/**
 	 * Check if we are in a takeoff situation
 	 */
-	bool 		in_takeoff_situation();
-
+	bool 	in_takeoff_situation();
 	/**
 	 * Do takeoff help when in altitude controlled modes
 	 * @param hold_altitude altitude setpoint for controller
 	 * @param pitch_limit_min minimum pitch allowed
 	 */
-	void 		do_takeoff_help(float *hold_altitude, float *pitch_limit_min);
+	void 	do_takeoff_help(float *hold_altitude, float *pitch_limit_min);
 
 	/**
 	 * Update desired altitude base on user pitch stick input
@@ -472,68 +449,62 @@ private:
 	 * @param dt Time step
 	 * @return true if climbout mode was requested by user (climb with max rate and min airspeed)
 	 */
-	bool		update_desired_altitude(float dt);
+	bool	update_desired_altitude(float dt);
 
 	/**
 	 * Control position.
 	 */
-	bool		control_position(const math::Vector<2> &global_pos, const math::Vector<3> &ground_speed,
-					 const struct position_setpoint_triplet_s &_pos_sp_triplet);
-
-	float		get_tecs_pitch();
-	float		get_tecs_thrust();
-
-	float		get_demanded_airspeed();
-	float		calculate_target_airspeed(float airspeed_demand);
-	void		calculate_gndspeed_undershoot(const math::Vector<2> &current_position, const math::Vector<2> &ground_speed_2d,
-			const struct position_setpoint_triplet_s &pos_sp_triplet);
+	bool	control_position(const math::Vector<2> &global_pos, const math::Vector<3> &ground_speed,
+					         const struct position_setpoint_triplet_s &_pos_sp_triplet);
+	float	get_tecs_pitch();
+	float	get_tecs_thrust();
+	float	get_demanded_airspeed();
+	float	calculate_target_airspeed(float airspeed_demand);
+	void	calculate_gndspeed_undershoot(const math::Vector<2> &current_position, const math::Vector<2> &ground_speed_2d,
+			                              const struct position_setpoint_triplet_s &pos_sp_triplet);
 
 	/**
 	 * Handle incoming vehicle commands
 	 */
-	void		handle_command();
+	void	handle_command();
 
 	/**
 	 * Shim for calling task_main from task_create.
 	 */
 	static void	task_main_trampoline(int argc, char *argv[]);
-
 	/**
 	 * Main sensor collection task.
 	 */
-	void		task_main();
+	void	task_main();
 
 	/*
 	 * Reset takeoff state
 	 */
-	void		reset_takeoff_state();
-
+	void	reset_takeoff_state();
 	/*
 	 * Reset landing state
 	 */
-	void		reset_landing_state();
+	void	reset_landing_state();
 
 	/*
 	 * Call TECS : a wrapper function to call the TECS implementation
 	 */
 	void tecs_update_pitch_throttle(float alt_sp, float v_sp, float eas2tas,
-					float pitch_min_rad, float pitch_max_rad,
-					float throttle_min, float throttle_max, float throttle_cruise,
-					bool climbout_mode, float climbout_pitch_min_rad,
-					float altitude,
-					const math::Vector<3> &ground_speed,
-					unsigned mode = tecs_status_s::TECS_MODE_NORMAL);
-
+									float pitch_min_rad, float pitch_max_rad,
+									float throttle_min, float throttle_max, float throttle_cruise,
+									bool climbout_mode, float climbout_pitch_min_rad,
+									float altitude,
+									const math::Vector<3> &ground_speed,
+									unsigned mode = tecs_status_s::TECS_MODE_NORMAL);
 };
 
 namespace l1_control
 {
-
-FixedwingPositionControl	*g_control = nullptr;
+	FixedwingPositionControl	*g_control = nullptr;
 }
 
+// 构造函数
 FixedwingPositionControl::FixedwingPositionControl() :
-
 	_mavlink_log_pub(nullptr),
 	_task_should_exit(false),
 	_task_running(false),
@@ -549,15 +520,12 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	_params_sub(-1),
 	_manual_control_sub(-1),
 	_sensor_combined_sub(-1),
-
 	/* publications */
 	_attitude_sp_pub(nullptr),
 	_tecs_status_pub(nullptr),
 	_fw_pos_ctrl_status_pub(nullptr),
-
 	/* publication ID */
 	_attitude_setpoint_id(0),
-
 	/* states */
 	_ctrl_state(),
 	_att_sp(),
@@ -571,8 +539,7 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	_pos_sp_triplet(),
 	_sensor_combined(),
 
-	/* performance counters */
-	_loop_perf(perf_alloc(PC_ELAPSED, "fw l1 control")),
+	_loop_perf(perf_alloc(PC_ELAPSED, "fw l1 control")), /* performance counters */
 
 	_hold_alt(0.0f),
 	_takeoff_ground_alt(0.0f),
@@ -599,7 +566,7 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	_target_bearing(0.0f),
 	_was_in_air(false),
 	_time_went_in_air(0),
-	_launchDetector(),
+	_launchDetector(), //
 	_launch_detection_state(LAUNCHDETECTION_RES_NONE),
 	_runway_takeoff(),
 	_last_manual(false),
@@ -619,8 +586,8 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	_was_in_transition(false),
 	_pos_reset_counter(0),
 	_alt_reset_counter(0),
-	_l1_control(),
-	_tecs(),
+	_l1_control(), //
+	_tecs(), //
 	_control_mode_current(FW_POSCTRL_MODE_OTHER),
 	_parameters(),
 	_parameter_handles()
@@ -683,26 +650,23 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	parameters_update();
 }
 
+// 析构函数
 FixedwingPositionControl::~FixedwingPositionControl()
 {
 	if (_control_task != -1) {
-
 		/* task wakes up every 100ms or so at the longest */
-		_task_should_exit = true;
-
+		_task_should_exit = true; //跳出task_main()中的大循环
 		/* wait for a second for the task to quit at our request */
 		unsigned i = 0;
-
 		do {
 			/* wait 20ms */
 			usleep(20000);
-
 			/* if we have given up, kill it */
 			if (++i > 50) {
 				px4_task_delete(_control_task);
 				break;
 			}
-		} while (_control_task != -1);
+		} while (_control_task != -1); //直到 _control_task == -1，跳出循环
 	}
 
 	l1_control::g_control = nullptr;
@@ -742,7 +706,6 @@ FixedwingPositionControl::parameters_update()
 	param_get(_parameter_handles.pitchsp_offset_deg, &_parameters.pitchsp_offset_rad);
 	_parameters.pitchsp_offset_rad = math::radians(_parameters.pitchsp_offset_rad);
 
-
 	param_get(_parameter_handles.time_const, &(_parameters.time_const));
 	param_get(_parameter_handles.time_const_throt, &(_parameters.time_const_throt));
 	param_get(_parameter_handles.min_sink_rate, &(_parameters.min_sink_rate));
@@ -772,8 +735,7 @@ FixedwingPositionControl::parameters_update()
 		_parameters.land_thrust_lim_alt_relative = 0.66f * _parameters.land_flare_alt_relative;
 	}
 
-	param_get(_parameter_handles.land_heading_hold_horizontal_distance,
-		  &(_parameters.land_heading_hold_horizontal_distance));
+	param_get(_parameter_handles.land_heading_hold_horizontal_distance, &(_parameters.land_heading_hold_horizontal_distance));
 	param_get(_parameter_handles.land_flare_pitch_min_deg, &(_parameters.land_flare_pitch_min_deg));
 	param_get(_parameter_handles.land_flare_pitch_max_deg, &(_parameters.land_flare_pitch_max_deg));
 	param_get(_parameter_handles.land_use_terrain_estimate, &(_parameters.land_use_terrain_estimate));
@@ -816,7 +778,7 @@ FixedwingPositionControl::parameters_update()
 
 	/* Update the landing slope */
 	_landingslope.update(math::radians(_parameters.land_slope_angle), _parameters.land_flare_alt_relative,
-			     _parameters.land_thrust_lim_alt_relative, _parameters.land_H1_virt);
+			             _parameters.land_thrust_lim_alt_relative, _parameters.land_H1_virt);
 
 	/* Update and publish the navigation capabilities */
 	_fw_pos_ctrl_status.landing_slope_angle_rad = _landingslope.landing_slope_angle_rad();
@@ -829,7 +791,7 @@ FixedwingPositionControl::parameters_update()
 
 	_runway_takeoff.updateParams();
 
-	return OK;
+	return OK; //更新成功返回0
 }
 
 void
@@ -964,19 +926,19 @@ FixedwingPositionControl::vehicle_setpoint_poll()
 	}
 }
 
+// 中转作用
 void
 FixedwingPositionControl::task_main_trampoline(int argc, char *argv[])
 {
-	l1_control::g_control = new FixedwingPositionControl();
-
+	l1_control::g_control = new FixedwingPositionControl(); //进入构造函数
 	if (l1_control::g_control == nullptr) {
 		warnx("OUT OF MEM");
 		return;
 	}
 
 	/* only returns on exit */
-	l1_control::g_control->task_main();
-	delete l1_control::g_control;
+	l1_control::g_control->task_main(); //主功能函数
+	delete l1_control::g_control; //进入析构函数，不明白，这样task_main()中的大循环补救跳出了么？？？
 	l1_control::g_control = nullptr;
 }
 
@@ -2198,7 +2160,9 @@ FixedwingPositionControl::handle_command()
 	}
 }
 
-
+//
+// 主要的任务执行函数！！！
+//
 void
 FixedwingPositionControl::task_main()
 {
@@ -2586,6 +2550,7 @@ FixedwingPositionControl::start()
 	return OK;
 }
 
+// 
 int fw_pos_control_l1_main(int argc, char *argv[])
 {
 	if (argc < 2) {
@@ -2594,26 +2559,21 @@ int fw_pos_control_l1_main(int argc, char *argv[])
 	}
 
 	if (!strcmp(argv[1], "start")) {
-
 		if (l1_control::g_control != nullptr) {
 			warnx("already running");
 			return 1;
 		}
-
 		if (OK != FixedwingPositionControl::start()) {
 			warn("start failed");
 			return 1;
 		}
-
 		/* avoid memory fragmentation by not exiting start handler until the task has fully started */
 		while (l1_control::g_control == nullptr || !l1_control::g_control->task_running()) {
 			usleep(50000);
 			printf(".");
 			fflush(stdout);
 		}
-
 		printf("\n");
-
 		return 0;
 	}
 
@@ -2622,7 +2582,6 @@ int fw_pos_control_l1_main(int argc, char *argv[])
 			warnx("not running");
 			return 1;
 		}
-
 		delete l1_control::g_control;
 		l1_control::g_control = nullptr;
 		return 0;
@@ -2632,7 +2591,6 @@ int fw_pos_control_l1_main(int argc, char *argv[])
 		if (l1_control::g_control) {
 			warnx("running");
 			return 0;
-
 		} else {
 			warnx("not running");
 			return 1;

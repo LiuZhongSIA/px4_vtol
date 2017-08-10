@@ -708,7 +708,8 @@ MulticopterAttitudeControl::control_attitude(float dt)
 	// 更新姿态期望
 	// 这个期望是由速度与位置环根据控制模式得到的
 	vehicle_attitude_setpoint_poll();
-	_thrust_sp = _v_att_sp.thrust;
+	_thrust_sp = _v_att_sp.thrust; //总的拉力期望值，在计算姿态期望时得到
+	                               //！！！
 
 	/* construct attitude setpoint rotation matrix */
 	// 姿态期望点旋转矩阵
@@ -781,8 +782,9 @@ MulticopterAttitudeControl::control_attitude(float dt)
 	}
 
 	/* calculate angular rates setpoint */
-	// 计算角速度的期望值
-	_rates_sp = _params.att_p.emult(e_R);
+	// 计算角速度的期望值，比例控制
+	// ！！！
+	_rates_sp = _params.att_p.emult(e_R); //p、q、r的期望值
 
 	/* limit rates */
 	// 对角速度大小进行限制，3个通道
@@ -790,7 +792,7 @@ MulticopterAttitudeControl::control_attitude(float dt)
 		if ((_v_control_mode.flag_control_velocity_enabled || _v_control_mode.flag_control_auto_enabled) &&
 		    !_v_control_mode.flag_control_manual_enabled) { //如果在速度环控制或者auto模式下
 			_rates_sp(i) = math::constrain(_rates_sp(i), -_params.auto_rate_max(i), _params.auto_rate_max(i));
-		} else {
+		} else { //如果是在手动控制下，采用不同门限限幅
 			_rates_sp(i) = math::constrain(_rates_sp(i), -_params.mc_rate_max(i), _params.mc_rate_max(i));
 		}
 	}
@@ -842,6 +844,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 
 	// 列向量元素相乘
 	// 滚转、俯仰、偏航的角速度控制
+	// ！！！
 	_att_control = _params.rate_p.emult(rates_err * tpa) + _params.rate_d.emult(_rates_prev - rates) / dt + _rates_int +
 		           _params.rate_ff.emult(_rates_sp);
 
@@ -876,8 +879,18 @@ MulticopterAttitudeControl::task_main_trampoline(int argc, char *argv[])
 }
 
 //
-// ！！！主要的任务执行程序
+// ！！！主要的任务执行函数
 //
+/*
+内环控制——
+	1. 判断是否在rattitude模式下，如果是，需要在杆量较大时禁能姿态控制
+	2. 如果进行姿态控制，会生成角速度期望_rates_sp（见// ！！！），并由姿态期望获得总的拉力期望_thrust_sp
+	   姿态期望由位置控制的线程发布
+	   （立式起降飞机，需要有“最优恢复控制策略”）
+	3. 如果不进行姿态控制，并且在手动控制下，那么就是要进行acro模式控制，那么需要将杆量直接对应于_rates_sp和_thrust_sp
+	   如果不处于手动控制，那说明需要由别的线程发布期望值
+	4. 进行角速度控制（见// ！！！），并将姿态控制量_att_control和拉力期望_thrust_sp发布给混控
+*/
 void
 MulticopterAttitudeControl::task_main()
 {
@@ -1003,7 +1016,7 @@ MulticopterAttitudeControl::task_main()
 				if (_v_control_mode.flag_control_manual_enabled) {//如果手动的话，说明在acro模式或者rattitude模式下
 					/* manual rates control - ACRO mode */
 					_rates_sp = math::Vector<3>(_manual_control_sp.y, -_manual_control_sp.x,
-								    _manual_control_sp.r).emult(_params.acro_rate_max); //相乘，杆量的值限制在了0～1之间
+								    _manual_control_sp.r).emult(_params.acro_rate_max); //相乘，杆量的值限制在了-1～1之间
 					_thrust_sp = math::min(_manual_control_sp.z, MANUAL_THROTTLE_MAX_MULTICOPTER);
 
 					/* publish attitude rates setpoint */

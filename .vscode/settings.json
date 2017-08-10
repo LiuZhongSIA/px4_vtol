@@ -171,6 +171,7 @@
         "up_ili93xx.c": "cpp",
         "up_lcd.c": "cpp",
         "perf_counter.c": "cpp",
-        "pid.c": "cpp"
+        "pid.c": "cpp",
+        "slist": "cpp"
     }
 }
