@@ -244,8 +244,8 @@ private:
 	}		_params;
 
 	// 地图上的参考位置
-	struct map_projection_reference_s _ref_pos; //经纬度+NED
-	float _ref_alt; //期望高度
+	struct map_projection_reference_s _ref_pos; //经纬度
+	float _ref_alt; //高度
 	hrt_abstime _ref_timestamp;
 
 	bool _reset_pos_sp;
@@ -474,7 +474,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_params_handles.thr_hover	= param_find("MPC_THR_HOVER"); //旋停拉力 0.5
 	_params_handles.alt_ctl_dz	= param_find("MPC_ALTCTL_DZ"); //定高拉力曲线断点 0.1，范围为center-dz to center+dz
 	_params_handles.alt_ctl_dy	= param_find("MPC_ALTCTL_DY"); //上述范围对应的油门高度 0（代表一个死区）
-	_params_handles.z_p		= param_find("MPC_Z_P");
+	_params_handles.z_p			= param_find("MPC_Z_P");
 	_params_handles.z_vel_p		= param_find("MPC_Z_VEL_P");
 	_params_handles.z_vel_i		= param_find("MPC_Z_VEL_I");
 	_params_handles.z_vel_d		= param_find("MPC_Z_VEL_D");
@@ -681,7 +681,7 @@ MulticopterPositionControl::poll_subscriptions()
 		orb_copy(ORB_ID(vehicle_land_detected), _vehicle_land_detected_sub, &_vehicle_land_detected);
 	}
 
-	// 控制状态，含控制模式
+	// 控制状态
 	orb_check(_ctrl_state_sub, &updated);
 	if (updated) {
 		orb_copy(ORB_ID(control_state), _ctrl_state_sub, &_ctrl_state);
@@ -692,14 +692,13 @@ MulticopterPositionControl::poll_subscriptions()
 		euler_angles = _R.to_euler();
 		_yaw = euler_angles(2); //航向角
 		if (_control_mode.flag_control_manual_enabled) { //手动控制
-			if (_heading_reset_counter != _ctrl_state.quat_reset_counter) {
+			if (_heading_reset_counter != _ctrl_state.quat_reset_counter) { //机头方向重置
 				_heading_reset_counter = _ctrl_state.quat_reset_counter;
 				math::Quaternion delta_q(_ctrl_state.delta_q_reset[0], _ctrl_state.delta_q_reset[1],
 				                         _ctrl_state.delta_q_reset[2], _ctrl_state.delta_q_reset[3]);
 				// we only extract the heading change from the delta quaternion
 				math::Vector<3> delta_euler = delta_q.to_euler();
-				_att_sp.yaw_body += delta_euler(2); //航向期望值
-				                                    //手动模式下航向角度是不控的，所以期望值就是实际航向值，相当于没有航向姿态环
+				_att_sp.yaw_body += delta_euler(2);
 			}
 		}
 
@@ -737,8 +736,8 @@ MulticopterPositionControl::poll_subscriptions()
 		// if the vehicle is in manual mode we will shift the setpoints of the
 		// states which were reset. In auto mode we do not shift the setpoints
 		// since we want the vehicle to track the original state.
-		if (_control_mode.flag_control_manual_enabled) { //手动模式下是不控位置和速度的，相应的期望值就是实际值
-			if (_z_reset_counter != _local_pos.z_reset_counter) {
+		if (_control_mode.flag_control_manual_enabled) {
+			if (_z_reset_counter != _local_pos.z_reset_counter) { //位置重置
 				_pos_sp(2) += _local_pos.delta_z;
 			}
 			if (_xy_reset_counter != _local_pos.xy_reset_counter) {
@@ -804,30 +803,34 @@ MulticopterPositionControl::task_main_trampoline(int argc, char *argv[])
 }
 
 // 根据预留时间戳，更新位置期望值
+// 更新_pos_sp
 void
 MulticopterPositionControl::update_ref()
 {
+	// 更新了新的飞行器位置信息
 	if (_local_pos.ref_timestamp != _ref_timestamp) {
 		double lat_sp, lon_sp;
 		float alt_sp = 0.0f;
 
 		if (_ref_timestamp != 0) {
 			/* calculate current position setpoint in global frame */
-			// 计算全局坐标系下的经纬高期望值
+			// 位置期望转化到经纬高坐标系下
 			map_projection_reproject(&_ref_pos, _pos_sp(0), _pos_sp(1), &lat_sp, &lon_sp);
 			alt_sp = _ref_alt - _pos_sp(2);
+			// 获得lat_sp、lon_sp、alt_sp
 		}
 
 		/* update local projection reference */
-		// 更新本地映射参考坐标系
+		// 获得飞行原点所在经纬度_ref_pos、海拔_ref_alt，作为参考信号
 		map_projection_init(&_ref_pos, _local_pos.ref_lat, _local_pos.ref_lon);
-		_ref_alt = _local_pos.ref_alt; //参考海拔，解锁时的海拔
+		_ref_alt = _local_pos.ref_alt;
 
 		if (_ref_timestamp != 0) {
 			/* reproject position setpoint to new reference */
-			// 位置期望映射到控制坐标系中
+			// 获得新坐标系下的位置期望
 			map_projection_project(&_ref_pos, lat_sp, lon_sp, &_pos_sp.data[0], &_pos_sp.data[1]);
-			_pos_sp(2) = -(alt_sp - _ref_alt); //海拔期望-参考海拔，是距离地面的高度
+			_pos_sp(2) = -(alt_sp - _ref_alt);
+			// 获得列向量_pos_sp
 		}
 
 		_ref_timestamp = _local_pos.ref_timestamp;
@@ -887,6 +890,24 @@ MulticopterPositionControl::limit_pos_sp_offset()
 //
 // 手动控制
 //
+/*
+	1. 由auto进入手动控制，做好位置、高度复位的准备
+	2. 根据杆量生成速度期望，垂向速度期望有死区（通过scale_control(...)函数实现）
+	3. 将上诉速度期望进行归一化，并乘以额定巡航速度，转换到NED坐标系下
+	4. 如果进行“位置”控制，首先根据前面的设置进行单次的位置期望复位
+			如果杆量足够小，当位置控制没有被占用，当水平面速度足够小时——占用位置控制，设置当前位置为位置期望
+											当水平速度较大时——不占用位置控制，飞机会慢慢减速直到进入位置控制
+			如果杆量太大，不占用位置控制
+	   当位置控制不占用时，_pos_sp(0~1)设置为当前位置（没有位置环），杆量直接对应于速度期望_vel_sp(0~1)
+	   _run_pos_control表示是否进行着位置控制
+	5. 如果进行“高度”控制，首先根据前面的设置进行单次的高度期望复位
+			如果油门杆在死区内，当高度控制没有被占用，当垂向速度足够小时——占用高度控制，设置当前高度为高度期望
+												当垂向速度较大时——不占用高度控制，飞机会减速进入高度控制
+			如果杆量不在死区内，不占用高度控制
+	   当高度控制不占用时，_pos_sp(2)设置为当前高度（没有高度控制），杆量直接对应于速度期望_vel_sp(2)
+	   _run_alt_control表示是否进行着高度控制
+	6. 此函数，根据控制模式，填入了位置或速度期望_pos_sp、_vel_sp，根据条件，关闭了控制标志位_run_pos_control、_run_alt_control
+*/
 void
 MulticopterPositionControl::control_manual(float dt)
 {
@@ -1004,6 +1025,19 @@ MulticopterPositionControl::control_manual(float dt)
 //
 // offboard模式
 //
+/*
+	1. 订阅一个特殊的topic position_setpoint_triplet，获得位置期望
+	2. 如果当前位置期望可用，
+			（1）如果进行位置控制，获得水平位置期望
+			    如果不进行位置控制，进行速度控制，根据需要复位位置期望，获得速度期望，关闭标志位_run_pos_control
+			（2）一定存在航向控制，或是直接获取航向期望，或是跟自己航向期望角速度计算，直接赋值_att_sp.yaw_body
+			（3）如果进行高度控制，获得高度期望
+			    如果不进行高度控制，进行climb_rate控制，根据需要复位高度期望，获得速度期望，关闭标志位_run_alt_control
+	   如果当前位置期望不可用，
+	   		根据设定，复位位置、高度期望
+	3. 此函数，根据控制模式，填入了位置或速度期望_pos_sp、_vel_sp，根据条件，关闭了控制标志位_run_pos_control、_run_alt_control
+	          填入航向期望值_att_sp.yaw_body
+*/
 void
 MulticopterPositionControl::control_offboard(float dt)
 {
@@ -1038,7 +1072,7 @@ MulticopterPositionControl::control_offboard(float dt)
 			_att_sp.yaw_body = _att_sp.yaw_body + _pos_sp_triplet.current.yawspeed * dt;
 		}
 
-		// offboard下的姿态控制不太安全，所以还是要保持固定的高度
+		// 保持固定的高度
 		if (_control_mode.flag_control_altitude_enabled && _pos_sp_triplet.current.alt_valid) {
 			/* control altitude as it is enabled */
 			_pos_sp(2) = _pos_sp_triplet.current.z;
@@ -1104,6 +1138,23 @@ MulticopterPositionControl::cross_sphere_line(const math::Vector<3> &sphere_c, f
 //
 // auto模式
 //
+/*
+	1. 如果首次进入auto模式，进行单次位置、高度期望复位
+	   如果在非旋翼模式下，要持续进行复位
+	2. 更新topic position_setpoint_triplet，并判断其是否可用
+	3. 如果当前期望位置可用，转换到NED坐标系下curr_sp，且current_setpoint_valid赋值true，表示当前位置期望可用
+	   如果上一期望位置可用，转换到NED坐标系下prev_sp，且previous_setpoint_valid赋值true，表示上一位置期望可用
+	4. 通过地面站参数或者之前订阅的topic更新巡航速度，并定义缩放比例scale对curr_sp进行缩放
+	5. 如果在航迹点飞行或目标跟踪下前一个位置期望点可用，且当前与前一个位置期望点之间的距离较大时，
+			如果当前位置缩放与当前期望缩放相距较小，生成一个动态的缩放期望点pos_sp_s
+			如果当前位置缩放与当前期望缩放相距较大，采取另一种方式生成pos_sp_s（通过cross_sphere_line(...)函数实现）
+	6. 基于上一动态的缩放期望点，生成动态位置期望_pos_sp
+	7. 利用航向角速度期望或者航向期望值，更新航向期望_att_sp.yaw_body
+	8. 在某些情况下将_do_reset_alt_pos_flag赋值为false，以实现切换至手动后不发生震荡
+	9. 起飞、降落时，保证起落架放下
+	10. 此函数，填入了位置期望_pos_sp和航向期望值_att_sp.yaw_body
+	    根据条件，关闭了标志位_do_reset_alt_pos_flag
+*/
 void MulticopterPositionControl::control_auto(float dt)
 {
 	/* reset position setpoint on AUTO mode activation or if we are not in MC mode */
@@ -1224,7 +1275,7 @@ void MulticopterPositionControl::control_auto(float dt)
 							}
 						}
 					}
-				} else { //如果下一个位置期望点不可用
+				} else {
 					bool near = cross_sphere_line(pos_s, 1.0f, prev_sp_s, curr_sp_s, pos_sp_s);
 					if (!near) {
 						/* we're far away from trajectory, pos_sp_s is set to the nearest point on the trajectory */
@@ -1289,11 +1340,58 @@ void MulticopterPositionControl::control_auto(float dt)
 }
 
 // 上面的函数control_manual(float dt)、control_offboard(float dt)、control_auto(float dt)
-// 根据不同的控制模式生成了NED坐标系下的位置期望_pos_sp、速度期望_vel_sp、_att_sp中的航向角期望
-
+// 根据不同的控制模式生成了“NED坐标系”下的位置期望_pos_sp、速度期望_vel_sp、_att_sp中的航向角期望
 //
 // ！！！主任务执行程序
 //
+/*
+外环控制——
+	1. 主要更新topic vehicle_local_position 获得飞机但前的位置，并更新其他的topic和控制参数
+	2. 如果是首次armed，进行多个复位的允许，包括位置期望、高度期望、手动控制下的复位操作、xyz3个方向的拉力积分、航向期望
+	                  上一速度期望设置为0
+	   如果在vtol的固定翼模式下，允许高度期望、航向期望复位
+	3. 利用update_ref()更新飞行原点的参考位置经纬高_ref_pos、_ref_alt
+	   将_pos_sp中的位置期望转化到新的坐标系下，经纬高->NED（似乎并没有什么用，后面会更新位置期望）
+	4. 更新飞机的NED位置和速度信息_pos、_vel，并计算速度微分
+	5. 对手动模式下是否占用位置、高度控制进行设置，实时检测是否退出占用
+	6. 如果进行外环（位置+速度）控制，
+		（1）默认_run_pos_control、_run_alt_control都是true的，之后根据控制模式调用control_manual(float dt)、
+		    control_offboard(float dt)、control_auto(float dt)函数，产生期望值，并对上面2个标志位更新
+		（2）判断是否禁能航向控制_att_sp.disable_mc_yaw_control，会作用于内环控制中
+		（3）如果没有在手动控制且正在怠速等待，需要设定恒定的姿态、拉力期望
+		（4）如果在手动控制且在地面上，需要设定恒定的姿态、拉力期望，
+		                          进行多个复位的允许，包括位置期望、高度期望、手动控制下的复位操作、xyz3个方向的拉力积分，
+	                              auto模式标志置为false
+	7. 如果进行正常的飞行控制，
+		位置环生成速度期望（见// ！！！）
+			（1）如果_run_pos_control被置位，要生成水平速度期望_vel_sp(0~1)
+			    如果计算的速度期望和给定的速度期望都可用，且处于目标跟踪时，要保证速度期望不小于设定期望的一个缩放值
+				如果当前位置不可用，需要直接赋值一个速度期望
+			（2）如果_run_alt_control被置位，需要生成垂向速度期望_vel_sp(2)，并对其进行限幅
+			（3）如果一些控制模式被禁能，要做好使能准备，允许一些复位操作并初始化参数
+			（4）如果是自主降落，采用恒定的速度
+				如果是自主起飞，首先需要飞机“跳”起来，直接给_takeoff_thrust_sp赋一个不断上升的值，速度期望设置为0，直到
+				上升速度大于恒定爬升速度的一半，认为“跳”起来了，并为z方向的拉力积分器赋值
+				之后，采用恒定的爬升速度
+			（5）利用加速度进一步限制速度期望，并将速度期望发布
+		如果进行速度控制、加速度控制、climb_rate控制，要由速度环生成姿态期望（见// ！！！）
+			（1）先对xyz3个方向的拉力积分器复位，z方向的复位还要判断reset_int_z_manual，以保证手动到定高的稳定
+			（2）如果上一时刻的速度期望位置，也就是上一时刻没有进入速度环控制，要对当前的速度期望进行调整
+			（3）计算加速度期望作为拉力期望_thrust_sp，并根据飞行模式进行调整
+			    例如，起飞时，要将上面列向量置0,并使_thrust_sp(2)=-takeoff_thrust_sp
+			（4）对3个方向的拉力期望进行限幅，并计算总的拉力期望thrust_abs，如果拉力期望没有饱和，会更新拉力积分器
+			（5）如果进行了速度或加速度控制，要由上述拉力期望计算姿态期望，赋值给_att_sp.q_d，赋值_att_sp.thrust=thrust_abs用于内环控制
+	8. 如果不进行外环（位置+速度）控制，进行多个复位的允许，包括位置期望、高度期望、手动控制下的复位操作、xyz3个方向的拉力积分，
+	                               auto模式标志置为false，上一速度期望设置为当前速度，
+								   利用上一速度期望进行控制的标志位设置为false，作为是否首次进入速度控制的标志
+	9. 在上面复位允许的基础上，如果是手动控制下的姿态控制，那么需要由杆量生成姿态期望
+			（1）armed后，要进行单次的航向复位
+				如果在天上，或进行了高度控制，或有油门杆量，航向期望_att_sp.yaw_sp根据杆量对应的航向角速度设定
+			（2）如果不进行climb_rate控制，直接把油门杆量给_att_sp.thrust
+			（3）如果不进行速度控制，_att_sp.roll_body、_att_sp.pitch_body直接对应杆量，并转换为_att_sp.q_d用于内环控制
+			（4）收放起落架
+	10. 如果在offboard模式下，且位置控制或速度控制或加速度控制没有被使能，就不会发布姿态期望，否则发布_att_sp。
+*/
 void
 MulticopterPositionControl::task_main()
 {
@@ -1513,6 +1611,7 @@ MulticopterPositionControl::task_main()
 				}
 			} else {
 				// 正常飞行时生成速度期望 ↓
+				// ！！！
 				/* run position & altitude controllers, if enabled (otherwise use already computed velocity setpoints) */
 				
 				// 如果要位置控制的话，那么虽然上面可能生成了速度期望值，但是需要由位置环生成速度期望
@@ -1552,7 +1651,6 @@ MulticopterPositionControl::task_main()
 				if (_run_alt_control) {
 					_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
 				}
-
 				// 确定期望速度不超过设定的额定值
 				/* make sure velocity setpoint is saturated in xy*/
 				float vel_norm_xy = sqrtf(_vel_sp(0) * _vel_sp(0) + _vel_sp(1) *   _vel_sp(1));
@@ -1573,7 +1671,6 @@ MulticopterPositionControl::task_main()
 				if (!_control_mode.flag_control_position_enabled) {
 					_reset_pos_sp = true;
 				}
-
 				if (!_control_mode.flag_control_altitude_enabled) {
 					_reset_alt_sp = true;
 				}
@@ -1601,11 +1698,11 @@ MulticopterPositionControl::task_main()
 				    && _control_mode.flag_armed) {
 					// check if we are not already in air.
 					// if yes then we don't need a jumped takeoff anymore
-					// 判断是不是有起飞的必要
+					// 判断飞机是不是离开地面
 					if (!_takeoff_jumped && !_vehicle_land_detected.landed && fabsf(_takeoff_thrust_sp) < FLT_EPSILON) {
 						_takeoff_jumped = true;
 					}
-					// 当_takeoff_jumped == false，需要起飞
+					// 首先需要飞机“跳”起来
 					if (!_takeoff_jumped) {
 						// ramp thrust setpoint up
 						if (_vel(2) > -(_params.tko_speed / 2.0f)) {
@@ -1623,6 +1720,7 @@ MulticopterPositionControl::task_main()
 							reset_int_z = false;
 						}
 					}
+					// “起跳”后，可以设置恒定的爬升速度
 					if (_takeoff_jumped) {
 						_vel_sp(2) = -_params.tko_speed;
 					}
@@ -1664,6 +1762,7 @@ MulticopterPositionControl::task_main()
 				}
 				// 正常飞行时生成速度期望 ↑
 
+				// ！！！
 				if (_control_mode.flag_control_climb_rate_enabled || _control_mode.flag_control_velocity_enabled ||
 				    _control_mode.flag_control_acceleration_enabled) {
 					// 计算NED三轴方向的所需拉力值 ↓
@@ -2027,7 +2126,6 @@ MulticopterPositionControl::task_main()
 					_att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get());
 				}
 			}
-
 			/* control roll and pitch directly if no aiding velocity controller is active */
 			if (!_control_mode.flag_control_velocity_enabled) {
 				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转、俯仰角度
@@ -2093,7 +2191,6 @@ MulticopterPositionControl::task_main()
 			_control_mode.flag_control_acceleration_enabled))) {
 			if (_att_sp_pub != nullptr) {
 				orb_publish(_attitude_setpoint_id, _att_sp_pub, &_att_sp);
-
 			} else if (_attitude_setpoint_id) {
 				_att_sp_pub = orb_advertise(_attitude_setpoint_id, &_att_sp);
 			}

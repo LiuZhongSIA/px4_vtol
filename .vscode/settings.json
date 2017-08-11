@@ -172,6 +172,9 @@
         "up_lcd.c": "cpp",
         "perf_counter.c": "cpp",
         "pid.c": "cpp",
-        "slist": "cpp"
+        "slist": "cpp",
+        "memory": "cpp",
+        "initializer_list": "cpp",
+        "future": "cpp"
     }
 }
