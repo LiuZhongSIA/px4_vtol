@@ -175,6 +175,9 @@
         "slist": "cpp",
         "memory": "cpp",
         "initializer_list": "cpp",
-        "future": "cpp"
+        "future": "cpp",
+        "limits": "cpp",
+        "valarray": "cpp",
+        "*.tcc": "c"
     }
 }

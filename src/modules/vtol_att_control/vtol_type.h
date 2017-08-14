@@ -84,54 +84,44 @@ class VtolAttitudeControl;
 class VtolType
 {
 public:
-
 	VtolType(VtolAttitudeControl *att_controller);
 	VtolType(const VtolType &) = delete;
 	VtolType &operator=(const VtolType &) = delete;
-
 	virtual ~VtolType();
 
 	/**
 	 * Update vtol state.
 	 */
 	virtual void update_vtol_state() = 0; //tiltrotor
-
 	/**
 	 * Update transition state.
 	 */
 	virtual void update_transition_state() = 0; //vtol_type，tiltrotor
-
 	/**
 	 * Update multicopter state.
 	 */
 	virtual void update_mc_state(); //vtol_type，tiltrotor
-
 	/**
 	 * Update fixed wing state.
 	 */
 	virtual void update_fw_state(); //vtol_type，tiltrotor
-
 	/**
 	 * Update external state.
 	 */
 	virtual void update_external_state() {};
-
 	/**
 	 * Write control values to actuator output topics.
 	 */
 	virtual void fill_actuator_outputs() = 0; //tiltrotor
-
 	/**
 	 * Special handling opportunity for the time right after transition to FW
 	 * before TECS is running.
 	 */
 	virtual void waiting_on_tecs() {}; //tiltrotor
-
 	/**
 	 * Checks for fixed-wing failsafe condition and issues abort request if needed.
 	 */
 	void check_quadchute_condition(); //vtol_type
-
 	/**
 	 * Returns true if we're allowed to do a mode transition on the ground.
 	 */
@@ -145,7 +135,7 @@ public:
 	virtual void parameters_update() = 0; //tiltrotor
 
 protected:
-	VtolAttitudeControl *_attc;
+	VtolAttitudeControl *_attc; //vtol的姿态控制
 	mode _vtol_mode; //一个简单的模式表示
 
 	struct vehicle_attitude_s		*_v_att;				//vehicle attitude

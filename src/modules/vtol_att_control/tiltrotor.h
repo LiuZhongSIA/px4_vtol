@@ -48,21 +48,17 @@
 // 一个继承
 class Tiltrotor : public VtolType
 {
-
 public:
-
 	Tiltrotor(VtolAttitudeControl *_att_controller);
 	~Tiltrotor();
 
-	virtual void update_vtol_state(); //状态机
+	virtual void update_vtol_state(); //状态机 // ！！！
 	virtual void update_transition_state();
 	virtual void fill_actuator_outputs(); //执行器控制量输出
 	virtual void update_mc_state();
 	virtual void update_fw_state();
 	virtual void waiting_on_tecs();
-
 private:
-
 	// 倾转旋翼特有的参数、参数句柄
 	struct {
 		float front_trans_dur;			/**< duration of first part of front transition */
@@ -74,7 +70,7 @@ private:
 		float airspeed_blend_start;		/**< airspeed at which we start blending mc/fw controls */
 		int elevons_mc_lock;			/**< lock elevons in multicopter mode */
 		float front_trans_dur_p2;
-		int fw_motors_off;			/**< bitmask of all motors that should be off in fixed wing mode */
+		int fw_motors_off;				/**< bitmask of all motors that should be off in fixed wing mode */
 	} _params_tiltrotor;
 	struct {
 		param_t front_trans_dur;
@@ -110,7 +106,8 @@ private:
 		IDLE
 	} _rear_motors;
 
-	// 过渡状态机的状态
+	// 倾转旋翼的过渡状态机的状态
+	// ！！！
 	struct {
 		vtol_mode flight_mode;			/**< vtol flight mode, defined by enum vtol_mode */
 		hrt_abstime transition_start;	/**< absoulte time at which front transition started */

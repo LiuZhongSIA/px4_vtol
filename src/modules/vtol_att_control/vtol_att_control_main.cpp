@@ -53,7 +53,7 @@
 
 namespace VTOL_att_control
 {
-VtolAttitudeControl *g_control;
+	VtolAttitudeControl *g_control;
 }
 
 /**
@@ -624,7 +624,6 @@ void VtolAttitudeControl::fill_mc_att_rates_sp()
 	_v_rates_sp.yaw 	= _mc_virtual_v_rates_sp.yaw;
 	_v_rates_sp.thrust 	= _mc_virtual_v_rates_sp.thrust;
 }
-
 /**
 * Prepare message for fw attitude rates setpoint topic
 * 直接获得固定翼的角速度期望值
@@ -639,7 +638,7 @@ void VtolAttitudeControl::fill_fw_att_rates_sp()
 }
 
 // 发布角度期望值
-// 发布的_v_att_sp实际上是刚刚订阅的
+// _v_att_sp的值由Tiltrotor::update_mc_state()或Tiltrotor::update_fw_state()或Tiltrotor::update_transition_state()更新
 void VtolAttitudeControl::publish_att_sp()
 {
 	if (_v_att_sp_pub != nullptr) {
@@ -660,6 +659,18 @@ VtolAttitudeControl::task_main_trampoline(int argc, char *argv[])
 
 /********** ！！！！！！！！！！！！！ **********/
 /********** vtol 控制功能由此函数实现 **********/
+/*
+增益调度控制过程——
+	1. 控制循环中主要关注的是来自多轴、固定翼的控制量actuator_controls_virtual_mc、actuator_controls_virtual_fw
+	2. 每次循环中都会发布vtol的飞行状态topic vtol_vehicle_status
+	3. 更新控制参数和其他的状态
+	4. 利用_vtol_type->update_vtol_state()更新目前的倾转状态
+	5. 利用_vtol_type->get_mode()获得倾转状态，不同状态下进行不同的权重更新、姿态期望、姿态角速度期望更新，并更新vtol飞行状态存储变量
+	   过渡模式下的姿态期望、姿态角速度期望都取的多旋翼控制器的生产量，实际控制中的拉力控制量也是取得多旋翼控制器的生产量
+	6. 发布姿态期望
+	7. 根据计算的权重，生成vtol控制量，并发布给主通道和辅助通道
+	8. 发布姿态角速度期望
+*/
 void VtolAttitudeControl::task_main()
 {
 	fflush(stdout);

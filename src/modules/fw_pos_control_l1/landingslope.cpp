@@ -59,7 +59,7 @@ Landingslope::Landingslope() :
 {
 }
 
-// 更新一些参数，并据此更新其他参数
+// 更新参数，并据此计算更新其他参数
 void Landingslope::update(float landing_slope_angle_rad_new,
 			  			  float flare_relative_alt_new,
 			              float motor_lim_relative_alt_new,
@@ -101,7 +101,7 @@ float Landingslope::getLandingSlopeRelativeAltitudeSave(float wp_landing_distanc
 float Landingslope::getLandingSlopeAbsoluteAltitude(float wp_landing_distance, float wp_altitude)
 {
 	return Landingslope::getLandingSlopeAbsoluteAltitude(wp_landing_distance, wp_altitude, _horizontal_slope_displacement,
-			_landing_slope_angle_rad);
+			                                             _landing_slope_angle_rad);
 }
 float Landingslope::getLandingSlopeAbsoluteAltitudeSave(float wp_landing_distance, float bearing_lastwp_currwp,
 		                                                float bearing_airplane_currwp, float wp_altitude)
@@ -114,7 +114,7 @@ float Landingslope::getLandingSlopeAbsoluteAltitudeSave(float wp_landing_distanc
 	}
 }
 
-// 
+// 滑行平飞曲线相对、绝对高度
 float Landingslope::getFlareCurveRelativeAltitudeSave(float wp_landing_distance, float bearing_lastwp_currwp,
 		                                              float bearing_airplane_currwp)
 {

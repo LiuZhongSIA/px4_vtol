@@ -43,7 +43,7 @@
 #include <math.h>
 #include <systemlib/err.h>
 
-class Landingslope //降落倾斜
+class Landingslope //slope：降落倾斜，flare：滑行平飞
 {
 private:
 	/* see Documentation/fw_landing.png for a plot of the landing slope */
@@ -51,6 +51,7 @@ private:
 	float _flare_relative_alt;				/**< h_flare,rel in the plot */      	//滑行平飞的高度
 	float _motor_lim_relative_alt;													//电机限制高度
 	float _H1_virt;							/**< H1 in the plot */					//虚拟线的高度，一般是负值
+	// 下面的参数可由上面参数计算------------------------------------------------------------------------------------//
 	float _H0;								/**< h_flare,rel + H1 in the plot */	//_flare_relative_alt+_H1_virt
 	float _d1;								/**< d1 in the plot */					//tan(_landing_slope_angle_rad)=_flare_relative_alt/_d1
 	float _flare_constant;															//
@@ -78,7 +79,7 @@ public:
 	 */
 	// 得到降落倾斜上的点与降落航迹点的相对高度，并避免剧烈爬升
 	float getLandingSlopeRelativeAltitudeSave(float wp_landing_distance, float bearing_lastwp_currwp,
-			                                  float bearing_airplane_currwp);
+			                                  float bearing_airplane_currwp); //bearing：方位
 
 	//////////
 	// 绝对高度

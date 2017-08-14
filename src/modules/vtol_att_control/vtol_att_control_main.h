@@ -142,11 +142,11 @@ public:
 
 private:
 //******************flags & handlers******************************************************
-// 要订阅与发布消息的句柄
 	bool _task_should_exit;
 	int _control_task;		//task handle for VTOL attitude controller
-	orb_advert_t _mavlink_log_pub;	// mavlink log uORB handle
 
+	// 要订阅与发布消息的句柄
+	orb_advert_t _mavlink_log_pub;	// mavlink log uORB handle
 	/* handlers for subscriptions */
 	int	_v_att_sub;				//vehicle attitude subscription
 	int	_v_att_sp_sub;			//vehicle attitude setpoint subscription
@@ -164,10 +164,8 @@ private:
 	int	_vehicle_cmd_sub;
 	int	_tecs_status_sub;
 	int	_land_detected_sub;
-
-	int 	_actuator_inputs_mc;	//topic on which the mc_att_controller publishes actuator inputs
-	int 	_actuator_inputs_fw;	//topic on which the fw_att_controller publishes actuator inputs
-
+	int _actuator_inputs_mc;	//topic on which the mc_att_controller publishes actuator inputs
+	int _actuator_inputs_fw;	//topic on which the fw_att_controller publishes actuator inputs
 	//handlers for publishers
 	orb_advert_t	_actuators_0_pub;		//input for the mixer (roll,pitch,yaw,thrust)
 	orb_advert_t 	_actuators_1_pub;
@@ -175,28 +173,27 @@ private:
 	orb_advert_t	_v_rates_sp_pub;
 	orb_advert_t	_v_att_sp_pub;
 
-//*******************data containers***********************************************************
-// 要订阅或发布的消息存储其中
-	struct vehicle_attitude_s			_v_att;				//vehicle attitude
+	// 要订阅或发布的消息存储其中
+	struct vehicle_attitude_s				_v_att;				//vehicle attitude
 	struct vehicle_attitude_setpoint_s		_v_att_sp;			//vehicle attitude setpoint
-	struct mc_virtual_attitude_setpoint_s 		_mc_virtual_att_sp;	// virtual mc attitude setpoint
-	struct fw_virtual_attitude_setpoint_s 		_fw_virtual_att_sp;	// virtual fw attitude setpoint
+	struct mc_virtual_attitude_setpoint_s 	_mc_virtual_att_sp;	// virtual mc attitude setpoint
+	struct fw_virtual_attitude_setpoint_s 	_fw_virtual_att_sp;	// virtual fw attitude setpoint
 	struct vehicle_rates_setpoint_s			_v_rates_sp;		//vehicle rates setpoint
 	struct mc_virtual_rates_setpoint_s 		_mc_virtual_v_rates_sp;		// virtual mc vehicle rates setpoint
 	struct fw_virtual_rates_setpoint_s 		_fw_virtual_v_rates_sp;		// virtual fw vehicle rates setpoint
 	struct manual_control_setpoint_s		_manual_control_sp; //manual control setpoint
 	struct vehicle_control_mode_s			_v_control_mode;	//vehicle control mode
 	struct vtol_vehicle_status_s 			_vtol_vehicle_status;
-	struct actuator_controls_s			_actuators_out_0;	//actuator controls going to the mc mixer
-	struct actuator_controls_s			_actuators_out_1;	//actuator controls going to the fw mixer (used for elevons)
-	struct actuator_controls_s			_actuators_mc_in;	//actuator controls from mc_att_control
-	struct actuator_controls_s			_actuators_fw_in;	//actuator controls from fw_att_control
-	struct actuator_armed_s				_armed;				//actuator arming status
+	struct actuator_controls_s				_actuators_out_0;	//actuator controls going to the mc mixer
+	struct actuator_controls_s				_actuators_out_1;	//actuator controls going to the fw mixer (used for elevons)
+	struct actuator_controls_s				_actuators_mc_in;	//actuator controls from mc_att_control
+	struct actuator_controls_s				_actuators_fw_in;	//actuator controls from fw_att_control
+	struct actuator_armed_s					_armed;				//actuator arming status
 	struct vehicle_local_position_s			_local_pos;
-	struct airspeed_s 				_airspeed;			// airspeed
-	struct battery_status_s 			_batt_status; 		// battery status
-	struct vehicle_command_s			_vehicle_cmd;
-	struct tecs_status_s				_tecs_status;
+	struct airspeed_s 						_airspeed;			// airspeed
+	struct battery_status_s 				_batt_status; 		// battery status
+	struct vehicle_command_s				_vehicle_cmd;
+	struct tecs_status_s					_tecs_status;
 	struct vehicle_land_detected_s			_land_detected;
 
 	// 定义在 vtol_type.h 中，存储关于vtol特有参数的定义
@@ -229,10 +226,8 @@ private:
 	VtolType *_vtol_type = nullptr;	// base class for different vtol types
 
 //*****************Member functions***********************************************************************
-
 	void 		task_main();	//main task
 	static void	task_main_trampoline(int argc, char *argv[]);	//Shim for calling task_main from task_create.
-
 	// 更新订阅的topic
 	void		vehicle_control_mode_poll();	//Check for changes in vehicle control mode.
 	void		vehicle_manual_poll();			//Check for changes in manual inputs.
@@ -255,8 +250,8 @@ private:
 	// 更新vtol特有参数
 	int 		parameters_update();			//Update local paraemter cache
 	// 仅转移存储变量
-	void 		fill_mc_att_rates_sp(); //mc_virtual_v_rates_sp -> _v_rates_sp
-	void 		fill_fw_att_rates_sp(); //
+	void 		fill_mc_att_rates_sp(); //_mc_virtual_v_rates_sp -> _v_rates_sp
+	void 		fill_fw_att_rates_sp(); //_fw_virtual_v_rates_sp -> _v_rates_sp
 	// 处理倾转指令
 	void		handle_command();
 	// 发布姿态控制期望

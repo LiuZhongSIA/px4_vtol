@@ -72,7 +72,7 @@ VtolType::VtolType(VtolAttitudeControl *att_controller) :
 	_batt_status = _attc->get_batt_status();
 	_tecs_status = _attc->get_tecs_status();
 	_land_detected = _attc->get_land_detected();
-	_params = _attc->get_params(); // vtol 的通用参数
+	_params = _attc->get_params(); //vtol 的通用参数
 
 	flag_idle_mc = true; // 为多轴模式设置闲置的旋翼转速
 }
@@ -180,7 +180,6 @@ void VtolType::update_fw_state()
 	// 当TECS没有使用时，或者没有最新的更新，且在定高模式时，保持高度
 	if ((!_tecs_running || (_tecs_running && _fw_virtual_att_sp->timestamp <= _tecs_running_ts))
 	    && _v_control_mode->flag_control_altitude_enabled) {
-
 		waiting_on_tecs(); //在 tiltrotor 中有定义，保持多轴时的拉力
 	}
 
@@ -200,13 +199,13 @@ bool VtolType::can_transition_on_ground()
 	return !_armed->armed || _land_detected->landed;
 }
 
-// vtol 的通用函数，根据高度判断是否可以进行前向倾转
+// vtol 的通用函数
+// 根据飞行高度判断是否可以进行前向倾转
 void VtolType::check_quadchute_condition()
 {
 	// fixed-wing minimum altitude, armed, !landed
 	if (_params->fw_min_alt > FLT_EPSILON
 	    && _armed->armed && !_land_detected->landed) {
-
 		if (-(_local_pos->z) < _params->fw_min_alt) {
 			_attc->abort_front_transition("Minimum altitude");
 		}
