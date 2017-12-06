@@ -76,6 +76,7 @@
 #include <uORB/topics/vehicle_global_velocity_setpoint.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/vehicle_land_detected.h>
+#include <uORB/topics/v44_tilt_flag.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/mavlink_log.h>
@@ -145,6 +146,7 @@ private:
 	orb_advert_t	_att_sp_pub;			/**< attitude setpoint publication */
 	orb_advert_t	_local_pos_sp_pub;		/**< vehicle local position setpoint publication */
 	orb_advert_t	_global_vel_sp_pub;		/**< vehicle global velocity setpoint publication */
+	orb_advert_t    _v44_tilt_flag_sp_pub;
 	orb_id_t _attitude_setpoint_id; //姿态期望发布的目标ID
 
 	// 结构体，要订阅或者发布的各种消息
@@ -159,6 +161,7 @@ private:
 	struct position_setpoint_triplet_s		_pos_sp_triplet;	/**< vehicle global position setpoint triplet */
 	struct vehicle_local_position_setpoint_s	_local_pos_sp;		/**< vehicle local position setpoint */
 	struct vehicle_global_velocity_setpoint_s	_global_vel_sp;		/**< vehicle global velocity setpoint */
+	struct v44_tilt_flag_s _v44_tilt_flag_sp;
 
 	control::BlockParamFloat _manual_thr_min;
 	control::BlockParamFloat _manual_thr_max;
@@ -399,6 +402,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_att_sp_pub(nullptr),
 	_local_pos_sp_pub(nullptr),
 	_global_vel_sp_pub(nullptr),
+	_v44_tilt_flag_sp_pub(nullptr),
 	_attitude_setpoint_id(0),
 
 	// 存储所需的结构体
@@ -413,6 +417,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_pos_sp_triplet{},
 	_local_pos_sp{},
 	_global_vel_sp{},
+	_v44_tilt_flag_sp{},
 
 	// 都是Block相关的变量
 	_manual_thr_min(this, "MANTHR_MIN"), //最小的手动控制油门
@@ -995,6 +1000,7 @@ MulticopterPositionControl::control_manual(float dt)
 	}
 	/* vertical axis */
 	// 位置辅助下，一定有高度辅助
+	// 根据高度速度杆量，生成高度期望（V44待修改）
 	if (_control_mode.flag_control_altitude_enabled) { //高度辅助
 		/* check for pos. hold */
 		// 如果油门杆回中，在死区范围内
@@ -1531,7 +1537,7 @@ MulticopterPositionControl::task_main()
 		}
 
 		// 要求进行外环的控制 ↓
-		if (_control_mode.flag_control_altitude_enabled ||
+		if (_control_mode.flag_control_altitude_enabled || //需要高度控制（V44待修改）
 		    _control_mode.flag_control_position_enabled ||
 		    _control_mode.flag_control_climb_rate_enabled ||
 		    _control_mode.flag_control_velocity_enabled ||
@@ -1647,7 +1653,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = _pos_sp_triplet.current.vy;
 				}
 
-				// 高度的P控制
+				// 单独的高度的P控制（V44待修改）
 				if (_run_alt_control) {
 					_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
 				}
@@ -1660,6 +1666,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = _vel_sp(1) * _params.vel_max(1) / vel_norm_xy;
 				}
 				/* make sure velocity setpoint is saturated in z*/
+				// （V44待修改）
 				if (_vel_sp(2) < -1.0f * _params.vel_max_up) {
 					_vel_sp(2) = -1.0f * _params.vel_max_up;
 				}
@@ -1743,6 +1750,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = vel_sp_hor(1);
 				}
 				// limit vertical acceleration
+				// 限制垂向加速度（V44待修改）
 				float acc_v = (_vel_sp(2) - _vel_sp_prev(2)) / dt;
 				if ((fabsf(acc_v) > 2 * _params.acc_hor_max) & !_reset_alt_sp) {
 					acc_v /= fabsf(acc_v);
@@ -2047,7 +2055,7 @@ MulticopterPositionControl::task_main()
 						_att_sp.roll_body = 0.0f;
 						_att_sp.pitch_body = 0.0f;
 					}
-					_att_sp.thrust = thrust_abs;
+					_att_sp.thrust = thrust_abs; //外环计算的总拉力期望（V44待修改）
 
 					/* save thrust setpoint for logging */
 					_local_pos_sp.acc_x = thrust_sp(0) * ONE_G;
@@ -2091,7 +2099,7 @@ MulticopterPositionControl::task_main()
 
 		/* generate attitude setpoint from manual controls */
 		if (_control_mode.flag_control_manual_enabled && _control_mode.flag_control_attitude_enabled) {
-			// 手动且姿态控制，直接遥控器生成姿态期望
+			// 手动且姿态控制，直接遥控器生成姿态期望（V44待修改）
 
 			/* reset yaw setpoint to current position if needed */
 			if (reset_yaw_sp) {
@@ -2113,7 +2121,7 @@ MulticopterPositionControl::task_main()
 				if (fabsf(yaw_offs) < yaw_offset_max ||
 				    (_att_sp.yaw_sp_move_rate > 0 && yaw_offs < 0) ||
 				    (_att_sp.yaw_sp_move_rate < 0 && yaw_offs > 0)) {
-					_att_sp.yaw_body = yaw_target;
+					_att_sp.yaw_body = yaw_target; //杆量生成的航向期望（V44待修改）
 				}
 			}
 
@@ -2123,15 +2131,32 @@ MulticopterPositionControl::task_main()
 				_att_sp.thrust = math::min(thr_val, _manual_thr_max.get());
 				/* enforce minimum throttle if not landed */
 				if (!_vehicle_land_detected.landed) {
-					_att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get());
+					_att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get()); //杆量生成的油门（V44待修改）
 				}
 			}
 			/* control roll and pitch directly if no aiding velocity controller is active */
 			if (!_control_mode.flag_control_velocity_enabled) {
-				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转、俯仰角度
+				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转、俯仰角度（V44待修改）
 				_att_sp.pitch_body = -_manual.x * _params.man_pitch_max;
+				if(_manual.transition_switch == manual_control_setpoint_s::SWITCH_POS_ON)
+				{
+					_att_sp.pitch_body = 0.0f;
+					_v44_tilt_flag_sp.can_tilt = true;
+					_v44_tilt_flag_sp.max_tilt_angle = _params.man_pitch_max;
+					_v44_tilt_flag_sp.tilt_angle = _manual.x * _params.man_pitch_max; //以弧度为单位
+					_v44_tilt_flag_sp.pitch_sp = _att_sp.pitch_body;
+					_v44_tilt_flag_sp.timestamp = hrt_absolute_time();
+				}
+				else
+				{
+					_v44_tilt_flag_sp.can_tilt = false;
+					_v44_tilt_flag_sp.max_tilt_angle = 0.0f;
+					_v44_tilt_flag_sp.tilt_angle = 0.0f;
+					_v44_tilt_flag_sp.pitch_sp = _att_sp.pitch_body;
+					_v44_tilt_flag_sp.timestamp = hrt_absolute_time();
+				}
 				/* only if optimal recovery is not used, modify roll/pitch */
-				if (_params.opt_recover <= 0) {
+				if (_params.opt_recover <= 0) {//避免航向误差的影响
 					// construct attitude setpoint rotation matrix. modify the setpoints for roll
 					// and pitch such that they reflect the user's intention even if a yaw error
 					// (yaw_sp - yaw) is present. In the presence of a yaw error constructing a rotation matrix
@@ -2193,6 +2218,11 @@ MulticopterPositionControl::task_main()
 				orb_publish(_attitude_setpoint_id, _att_sp_pub, &_att_sp);
 			} else if (_attitude_setpoint_id) {
 				_att_sp_pub = orb_advertise(_attitude_setpoint_id, &_att_sp);
+			}
+			if (_v44_tilt_flag_sp_pub != nullptr){
+				orb_publish(ORB_ID(v44_tilt_flag), _v44_tilt_flag_sp_pub, &_v44_tilt_flag_sp);
+			} else {
+				_v44_tilt_flag_sp_pub = orb_advertise(ORB_ID(v44_tilt_flag), &_v44_tilt_flag_sp);
 			}
 		}
 		/* reset altitude controller integral (hovering throttle) to manual throttle after manual throttle control */

@@ -418,3 +418,138 @@ PARAM_DEFINE_FLOAT(MC_TPA_SLOPE, 1.0f);
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
+
+/**
+ * Pitch rate P gain for tilt servo
+ *
+ * Pitch rate proportional gain, i.e. control output for angular speed error 1 rad/s.
+ *
+ * @min 0.0
+ * @decimal 3
+ * @increment 0.01
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_PITCHRA_P_TS, 0.0f);
+
+/**
+ * Pitch rate I gain for tilt servo
+ *
+ * Pitch rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
+ *
+ * @min 0.0
+ * @decimal 3
+ * @increment 0.01
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_PITCHRA_I_TS, 0.0f);
+
+/**
+ * Pitch rate D gain for tilt servo
+ *
+ * Pitch rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
+ *
+ * @min 0.0
+ * @decimal 4
+ * @increment 0.0005
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_PITCHRA_D_TS, 0.0f);
+
+/**
+ * Pitch rate feedforward for tilt servo
+ *
+ * Improves tracking performance.
+ *
+ * @min 0.0
+ * @decimal 4
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_PITCHRA_FF_TS, 0.0f);
+
+/**
+ * Position of tilt servo 1 in mc mode (up left)
+ *
+ * @min 0.0
+ * @max 1.0
+ * @increment 0.01
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_1_MC, 0.0f);
+
+/**
+ * Position of tilt servo 1 in fw mode (up left)
+ *
+ * @min 0.0
+ * @max 1.0
+ * @increment 0.01
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_1_FW, 1.0f);
+
+/**
+ * Position of tilt servo 2 in mc mode (up right)
+ *
+ * @min 0.0
+ * @max 1.0
+ * @increment 0.01
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_2_MC, 0.0f);
+
+/**
+ * Position of tilt servo 2 in fw mode (up right)
+ *
+ * @min 0.0
+ * @max 1.0
+ * @increment 0.01
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_2_FW, 1.0f);
+
+/**
+ * Position of tilt servo 3 in mc mode (low right)
+ *
+ * @min 0.0
+ * @max 1.0
+ * @increment 0.01
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_3_MC, 0.0f);
+
+/**
+ * Position of tilt servo 3 in fw mode (low right)
+ *
+ * @min 0.0
+ * @max 1.0
+ * @increment 0.01
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_3_FW, 1.0f);
+
+/**
+ * Position of tilt servo 4 in mc mode (low left)
+ *
+ * @min 0.0
+ * @max 1.0
+ * @increment 0.01
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_4_MC, 0.0f);
+
+/**
+ * Position of tilt servo 4 in fw mode (low left)
+ *
+ * @min 0.0
+ * @max 1.0
+ * @increment 0.01
+ * @decimal 3
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_4_FW, 1.0f);

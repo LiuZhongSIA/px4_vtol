@@ -1,0 +1,4 @@
+bool can_tilt
+float32 max_tilt_angle
+float32 tilt_angle
+float32 pitch_sp

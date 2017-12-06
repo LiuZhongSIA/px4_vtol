@@ -81,6 +81,7 @@
 #include <uORB/topics/multirotor_motor_limits.h>
 #include <uORB/topics/mc_att_ctrl_status.h>
 #include <uORB/topics/battery_status.h>
+#include <uORB/topics/v44_tilt_flag.h>
 #include <systemlib/param/param.h>
 #include <systemlib/err.h>
 #include <systemlib/perf_counter.h>
@@ -143,6 +144,7 @@ private:
 	int		_vehicle_status_sub;	/**< vehicle status subscription */ //飞行器状态，包括了是不是处于vtol，是不是
 	int 	_motor_limits_sub;		/**< motor limits subscription */
 	int 	_battery_status_sub;	/**< battery status subscription */
+	int     _v44_tilt_flag_sub;
 
 	orb_advert_t	_v_rates_sp_pub;		/**< rate setpoint publication */
 	orb_advert_t	_actuators_0_pub;		/**< attitude actuator controls publication */
@@ -164,6 +166,7 @@ private:
 	struct multirotor_motor_limits_s	_motor_limits;		/**< motor limits */
 	struct mc_att_ctrl_status_s 		_controller_status; /**< controller status */
 	struct battery_status_s				_battery_status;	/**< battery status */
+	struct v44_tilt_flag_s              _v44_tilt_flag;
 
 	perf_counter_t	_loop_perf;			/**< loop performance counter */ //循环性能计数器
 	perf_counter_t	_controller_latency_perf; //控制器潜在因素性能
@@ -172,8 +175,10 @@ private:
 	math::Vector<3>		_rates_sp_prev; /**< previous rates setpoint */
 	math::Vector<3>		_rates_sp;		/**< angular rates setpoint */
 	math::Vector<3>		_rates_int;		/**< angular rates integral error */ //误差积分
+	float               _pitch_rate_int_ts; //一个单独的俯仰角速度积分变量
 	float				_thrust_sp;		/**< thrust setpoint */
 	math::Vector<3>		_att_control;	/**< attitude control vector */
+	float               _pitch_control_ts; //俯仰控制的旋翼倾转控制量
 
 	math::Matrix<3, 3>  _I;				/**< identity matrix */ //单位矩阵
 
@@ -214,6 +219,20 @@ private:
 
 		param_t bat_scale_en;               //是否根据电池电池电量缩放输出
 
+		// 新添加句柄
+		param_t pitch_rate_p_ts;
+		param_t pitch_rate_i_ts;
+		param_t pitch_rate_d_ts;
+		param_t pitch_rate_ff_ts;
+		param_t vt_tilt_1_mc;
+		param_t vt_tilt_1_fw;
+		param_t vt_tilt_2_mc;
+		param_t vt_tilt_2_fw;
+		param_t vt_tilt_3_mc;
+		param_t vt_tilt_3_fw;
+		param_t vt_tilt_4_mc;
+		param_t vt_tilt_4_fw;
+
 	}		_params_handles;		        /**< handles for interesting parameters */
 
 	struct {
@@ -240,6 +259,20 @@ private:
 		float vtol_wv_yaw_rate_scale;	    /**< Scale value [0, 1] for yaw rate setpoint  */
 
 		int bat_scale_en;
+
+		// 新添加的变量
+		float pitch_rate_p_ts;
+		float pitch_rate_i_ts;
+		float pitch_rate_d_ts;
+		float pitch_rate_ff_ts;
+		float vt_tilt_1_mc;
+		float vt_tilt_1_fw;
+		float vt_tilt_2_mc;
+		float vt_tilt_2_fw;
+		float vt_tilt_3_mc;
+		float vt_tilt_3_fw;
+		float vt_tilt_4_mc;
+		float vt_tilt_4_fw;
 	}		_params;
 
 	TailsitterRecovery *_ts_opt_recovery;	/**< Computes optimal rates for tailsitter recovery */
@@ -305,6 +338,11 @@ private:
 	void		battery_status_poll();
 
 	/**
+	 * Check for tilt flag updates.
+	 */
+	void		v44_tilt_flag_poll();
+
+	/**
 	 * Shim for calling task_main from task_create.
 	 */
 	static void	task_main_trampoline(int argc, char *argv[]);
@@ -336,6 +374,7 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_manual_control_sp_sub(-1),
 	_armed_sub(-1),
 	_vehicle_status_sub(-1),
+	_v44_tilt_flag_sub(-1),
 
 	/* publications */
 	_v_rates_sp_pub(nullptr),
@@ -363,6 +402,7 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	memset(&_vehicle_status, 0, sizeof(_vehicle_status));
 	memset(&_motor_limits, 0, sizeof(_motor_limits));
 	memset(&_controller_status, 0, sizeof(_controller_status));
+	memset(&_v44_tilt_flag, 0, sizeof(_v44_tilt_flag));
 	_vehicle_status.is_rotary_wing = true; //处于旋翼模式下
 
 	_params.att_p.zero();
@@ -381,11 +421,24 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_params.vtol_opt_recovery_enabled = false;
 	_params.vtol_wv_yaw_rate_scale = 1.0f;
 	_params.bat_scale_en = 0;
+	_params.pitch_rate_p_ts = 0.0f; //新参数的初始化
+	_params.pitch_rate_i_ts = 0.0f;
+	_params.pitch_rate_d_ts = 0.0f;
+	_params.pitch_rate_ff_ts = 0.0f;
+	_params.vt_tilt_1_mc = 0.0f;
+	_params.vt_tilt_1_fw = 1.0f;
+	_params.vt_tilt_2_mc = 0.0f;
+	_params.vt_tilt_2_fw = 1.0f;
+	_params.vt_tilt_3_mc = 0.0f;
+	_params.vt_tilt_3_fw = 1.0f;
+	_params.vt_tilt_4_mc = 0.0f;
+	_params.vt_tilt_4_fw = 1.0f;
 
 	_rates_prev.zero();
 	_rates_sp.zero();
 	_rates_sp_prev.zero();
 	_rates_int.zero();
+	_pitch_rate_int_ts = 0.0f;
 	_thrust_sp = 0.0f;
 	_att_control.zero();
 
@@ -424,6 +477,19 @@ MulticopterAttitudeControl::MulticopterAttitudeControl() :
 	_params_handles.vtol_opt_recovery_enabled	= param_find("VT_OPT_RECOV_EN");
 	_params_handles.vtol_wv_yaw_rate_scale		= param_find("VT_WV_YAWR_SCL");
 	_params_handles.bat_scale_en		= param_find("MC_BAT_SCALE_EN");
+	// 新添加句柄
+	_params_handles.pitch_rate_p_ts	= 	param_find("MC_PITCHRA_P_TS");
+	_params_handles.pitch_rate_i_ts	= 	param_find("MC_PITCHRA_I_TS");
+	_params_handles.pitch_rate_d_ts	= 	param_find("MC_PITCHRA_D_TS");
+	_params_handles.pitch_rate_ff_ts= 	param_find("MC_PITCHRA_FF_TS");
+	_params_handles.vt_tilt_1_mc    = 	param_find("VT_TILT_1_MC");
+	_params_handles.vt_tilt_1_fw    = 	param_find("VT_TILT_1_FW");
+	_params_handles.vt_tilt_2_mc    = 	param_find("VT_TILT_2_MC");
+	_params_handles.vt_tilt_2_fw    = 	param_find("VT_TILT_2_FW");
+	_params_handles.vt_tilt_3_mc    = 	param_find("VT_TILT_3_MC");
+	_params_handles.vt_tilt_3_fw    = 	param_find("VT_TILT_3_FW");
+	_params_handles.vt_tilt_4_mc    = 	param_find("VT_TILT_4_MC");
+	_params_handles.vt_tilt_4_fw    = 	param_find("VT_TILT_4_FW");
 
 	/* fetch initial parameter values */
 	// 根据句柄，更新参数，这是初始化的参数
@@ -561,6 +627,32 @@ MulticopterAttitudeControl::parameters_update()
 	// 是在模仿航空断路器实现子系统的禁能，使能的条件比较苛刻，使能后的结果就是不发布混控输入值
 	_actuators_0_circuit_breaker_enabled = circuit_breaker_enabled("CBRK_RATE_CTRL", CBRK_RATE_CTRL_KEY);
 
+	// 更新新变量
+	param_get(_params_handles.pitch_rate_p_ts, &v);
+	_params.pitch_rate_p_ts = v * (ATTITUDE_TC_DEFAULT / pitch_tc);
+	param_get(_params_handles.pitch_rate_i_ts, &v);
+	_params.pitch_rate_i_ts = v;
+	param_get(_params_handles.pitch_rate_d_ts, &v);
+	_params.pitch_rate_d_ts = v * (ATTITUDE_TC_DEFAULT / pitch_tc);
+	param_get(_params_handles.pitch_rate_ff_ts, &v);
+	_params.pitch_rate_ff_ts = v;
+	param_get(_params_handles.vt_tilt_1_mc, &v);
+	_params.vt_tilt_1_mc = v;
+	param_get(_params_handles.vt_tilt_1_fw, &v);
+	_params.vt_tilt_1_fw = v;
+	param_get(_params_handles.vt_tilt_2_mc, &v);
+	_params.vt_tilt_2_mc = v;
+	param_get(_params_handles.vt_tilt_2_fw, &v);
+	_params.vt_tilt_2_fw = v;
+	param_get(_params_handles.vt_tilt_3_mc, &v);
+	_params.vt_tilt_3_mc = v;
+	param_get(_params_handles.vt_tilt_3_fw, &v);
+	_params.vt_tilt_3_fw = v;
+	param_get(_params_handles.vt_tilt_4_mc, &v);
+	_params.vt_tilt_4_mc = v;
+	param_get(_params_handles.vt_tilt_4_fw, &v);
+	_params.vt_tilt_4_fw = v;
+
 	return OK;
 }
 
@@ -695,6 +787,16 @@ MulticopterAttitudeControl::battery_status_poll()
 	}
 }
 
+void
+MulticopterAttitudeControl::v44_tilt_flag_poll()
+{
+	bool updated;
+	orb_check(_v44_tilt_flag_sub, &updated);
+	if (updated) {
+		orb_copy(ORB_ID(v44_tilt_flag), _v44_tilt_flag_sub, &_v44_tilt_flag);
+	}
+}
+
 // 大量信息的订阅↑↑↑↑↑
 
 /**
@@ -824,6 +926,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	// 为了保证解锁/进入旋翼模式后，姿态角控制的积分器为0
 	if (!_armed.armed || !_vehicle_status.is_rotary_wing) {
 		_rates_int.zero();
+		_pitch_rate_int_ts = 0.0f;
 	}
 
 	/* current body angular rates */
@@ -847,24 +950,52 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	// ！！！
 	_att_control = _params.rate_p.emult(rates_err * tpa) + _params.rate_d.emult(_rates_prev - rates) / dt + _rates_int +
 		           _params.rate_ff.emult(_rates_sp);
+	if (_v44_tilt_flag.can_tilt != true){
+		_pitch_rate_int_ts = 0;
+		_pitch_control_ts = 0;
+	} else { //一个俯仰角速度的单独控制
+		_pitch_control_ts = _params.pitch_rate_p_ts * rates_err(1) * tpa +
+							_params.pitch_rate_d_ts * (_rates_prev(1) - rates(1)) / dt +
+							_pitch_rate_int_ts + _params.pitch_rate_ff_ts * _rates_sp(1);
+	}
 
 	_rates_sp_prev = _rates_sp; //
 	_rates_prev = rates; //用于下一控制循环
 
+	// ！！！
+	// 根据V44的控制，重新分配控制量
+	// ！！！
+	if (_v44_tilt_flag.can_tilt != true){
+
+	} else {
+
+	}
+
 	/* update integral only if not saturated on low limit and if motor commands are not saturated */
 	//如果拉力期望值大于最小起飞拉力，且电机没有饱和
 	if (_thrust_sp > MIN_TAKEOFF_THRUST && !_motor_limits.lower_limit && !_motor_limits.upper_limit) {
-		for (int i = AXIS_INDEX_ROLL; i < AXIS_COUNT; i++) {
-			// 如果姿态的控制量，小于拉力的控制量，进行积分运算
-			if (fabsf(_att_control(i)) < _thrust_sp) {
-				float rate_i = _rates_int(i) + _params.rate_i(i) * rates_err(i) * dt;
-				// 如果积分值有限，且积分值和控制量都在限制范围内，且航向控制没有达到电机约束，进行积分值更新
-				// 设置条件的积分分离
-				if (PX4_ISFINITE(rate_i) && rate_i > -RATES_I_LIMIT && rate_i < RATES_I_LIMIT &&
-				    _att_control(i) > -RATES_I_LIMIT && _att_control(i) < RATES_I_LIMIT &&
-				    /* if the axis is the yaw axis, do not update the integral if the limit is hit */
-				    !((i == AXIS_INDEX_YAW) && _motor_limits.yaw)) {
-					_rates_int(i) = rate_i;
+		if (_v44_tilt_flag.can_tilt != true){
+			for (int i = AXIS_INDEX_ROLL; i < AXIS_COUNT; i++) {
+				// 如果姿态的控制量，小于拉力的控制量，进行积分运算
+				if (fabsf(_att_control(i)) < _thrust_sp) {
+					float rate_i = _rates_int(i) + _params.rate_i(i) * rates_err(i) * dt;
+					// 如果积分值有限，且积分值和控制量都在限制范围内，且航向控制没有达到电机约束，进行积分值更新
+					// 设置条件的积分分离
+					if (PX4_ISFINITE(rate_i) && rate_i > -RATES_I_LIMIT && rate_i < RATES_I_LIMIT &&
+						_att_control(i) > -RATES_I_LIMIT && _att_control(i) < RATES_I_LIMIT &&
+						/* if the axis is the yaw axis, do not update the integral if the limit is hit */
+						!((i == AXIS_INDEX_YAW) && _motor_limits.yaw)) {
+						_rates_int(i) = rate_i;
+					}
+				}
+			}
+		} else { //如果允许旋翼倾转，需要重新设计积分限幅
+			if(1) //还需要添加判断条件
+			{
+				float pitch_rate_int_ts = _pitch_rate_int_ts + _params.pitch_rate_i_ts * rates_err(1) * dt;
+				if(1) //还需添加判断条件
+				{
+					_pitch_rate_int_ts = pitch_rate_int_ts;
 				}
 			}
 		}
@@ -908,6 +1039,7 @@ MulticopterAttitudeControl::task_main()
 	_vehicle_status_sub = orb_subscribe(ORB_ID(vehicle_status));
 	_motor_limits_sub = orb_subscribe(ORB_ID(multirotor_motor_limits));
 	_battery_status_sub = orb_subscribe(ORB_ID(battery_status));
+	_v44_tilt_flag_sub = orb_subscribe(ORB_ID(v44_tilt_flag));
 
 	/* initialize parameters cache */ //初始化参数缓存
 	parameters_update();
@@ -965,6 +1097,7 @@ MulticopterAttitudeControl::task_main()
 			vehicle_status_poll();
 			vehicle_motor_limits_poll();
 			battery_status_poll();
+			v44_tilt_flag_poll();
 
 			/* Check if we are in rattitude mode and the pilot is above the threshold on pitch
 			 * or roll (yaw can rotate 360 in normal att control).  If both are true don't
