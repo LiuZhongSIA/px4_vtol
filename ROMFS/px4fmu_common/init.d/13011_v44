@@ -1,0 +1,14 @@
+#!nsh
+#
+# @name v44 from QiTianYi of Jinan
+#
+# @type VTOL Tiltrotor
+#
+# @maintainer liuzhong <liuzhong@sia.cn>
+#
+
+sh /etc/init.d/rc.mc_defaults
+
+set MIXER v44
+
+set PWM_OUT 12345678
