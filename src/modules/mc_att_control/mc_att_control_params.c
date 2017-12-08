@@ -81,7 +81,7 @@ PARAM_DEFINE_FLOAT(MC_PITCH_TC, 0.2f);
 PARAM_DEFINE_FLOAT(MC_ROLL_P, 6.5f);
 
 /**
- * Roll rate P gain
+ * Roll rate P gain (MC)
  *
  * Roll rate proportional gain, i.e. control output for angular speed error 1 rad/s.
  *
@@ -94,7 +94,7 @@ PARAM_DEFINE_FLOAT(MC_ROLL_P, 6.5f);
 PARAM_DEFINE_FLOAT(MC_ROLLRATE_P, 0.15f);
 
 /**
- * Roll rate I gain
+ * Roll rate I gain (MC)
  *
  * Roll rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
  *
@@ -106,7 +106,7 @@ PARAM_DEFINE_FLOAT(MC_ROLLRATE_P, 0.15f);
 PARAM_DEFINE_FLOAT(MC_ROLLRATE_I, 0.05f);
 
 /**
- * Roll rate D gain
+ * Roll rate D gain (MC)
  *
  * Roll rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
  *
@@ -119,7 +119,7 @@ PARAM_DEFINE_FLOAT(MC_ROLLRATE_I, 0.05f);
 PARAM_DEFINE_FLOAT(MC_ROLLRATE_D, 0.003f);
 
 /**
- * Roll rate feedforward
+ * Roll rate feedforward (MC)
  *
  * Improves tracking performance.
  *
@@ -144,7 +144,7 @@ PARAM_DEFINE_FLOAT(MC_ROLLRATE_FF, 0.0f);
 PARAM_DEFINE_FLOAT(MC_PITCH_P, 6.5f);
 
 /**
- * Pitch rate P gain
+ * Pitch rate P gain (MC)
  *
  * Pitch rate proportional gain, i.e. control output for angular speed error 1 rad/s.
  *
@@ -157,7 +157,7 @@ PARAM_DEFINE_FLOAT(MC_PITCH_P, 6.5f);
 PARAM_DEFINE_FLOAT(MC_PITCHRATE_P, 0.15f);
 
 /**
- * Pitch rate I gain
+ * Pitch rate I gain (MC)
  *
  * Pitch rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
  *
@@ -169,7 +169,7 @@ PARAM_DEFINE_FLOAT(MC_PITCHRATE_P, 0.15f);
 PARAM_DEFINE_FLOAT(MC_PITCHRATE_I, 0.05f);
 
 /**
- * Pitch rate D gain
+ * Pitch rate D gain (MC)
  *
  * Pitch rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
  *
@@ -181,7 +181,7 @@ PARAM_DEFINE_FLOAT(MC_PITCHRATE_I, 0.05f);
 PARAM_DEFINE_FLOAT(MC_PITCHRATE_D, 0.003f);
 
 /**
- * Pitch rate feedforward
+ * Pitch rate feedforward (MC)
  *
  * Improves tracking performance.
  *
@@ -206,7 +206,7 @@ PARAM_DEFINE_FLOAT(MC_PITCHRATE_FF, 0.0f);
 PARAM_DEFINE_FLOAT(MC_YAW_P, 2.8f);
 
 /**
- * Yaw rate P gain
+ * Yaw rate P gain (MC)
  *
  * Yaw rate proportional gain, i.e. control output for angular speed error 1 rad/s.
  *
@@ -219,7 +219,7 @@ PARAM_DEFINE_FLOAT(MC_YAW_P, 2.8f);
 PARAM_DEFINE_FLOAT(MC_YAWRATE_P, 0.2f);
 
 /**
- * Yaw rate I gain
+ * Yaw rate I gain (MC)
  *
  * Yaw rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
  *
@@ -231,7 +231,7 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_P, 0.2f);
 PARAM_DEFINE_FLOAT(MC_YAWRATE_I, 0.1f);
 
 /**
- * Yaw rate D gain
+ * Yaw rate D gain (MC)
  *
  * Yaw rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
  *
@@ -243,7 +243,7 @@ PARAM_DEFINE_FLOAT(MC_YAWRATE_I, 0.1f);
 PARAM_DEFINE_FLOAT(MC_YAWRATE_D, 0.0f);
 
 /**
- * Yaw rate feedforward
+ * Yaw rate feedforward (MC)
  *
  * Improves tracking performance.
  *
@@ -420,31 +420,78 @@ PARAM_DEFINE_FLOAT(MC_TPA_SLOPE, 1.0f);
 PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
 
 /**
- * Pitch rate P gain for tilt servo
+ * Roll rate P gain (FW)
+ *
+ * Roll rate proportional gain, i.e. control output for angular speed error 1 rad/s.
+ *
+ * @min 0.0
+ * @decimal 3
+ * @increment 0.001
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_ROLLRA_P_FW, 0.05f);
+
+/**
+ * Roll rate I gain (FW)
+ *
+ * Roll rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
+ *
+ * @min 0.0
+ * @decimal 3
+ * @increment 0.001
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_ROLLRA_I_FW, 0.01f);
+
+/**
+ * Roll rate D gain (FW)
+ *
+ * Roll rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
+ *
+ * @min 0.0
+ * @decimal 4
+ * @increment 0.0005
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_ROLLRA_D_FW, 0.0f);
+
+/**
+ * Roll rate feedforward (FW)
+ *
+ * Improves tracking performance.
+ *
+ * @min 0.0
+ * @decimal 4
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_ROLLRA_FF_FW, 0.0f);
+
+/**
+ * Pitch rate P gain (FW)
  *
  * Pitch rate proportional gain, i.e. control output for angular speed error 1 rad/s.
  *
  * @min 0.0
  * @decimal 3
- * @increment 0.01
+ * @increment 0.001
  * @group Multicopter Attitude Control
  */
-PARAM_DEFINE_FLOAT(MC_PITCHRA_P_TS, 0.0f);
+PARAM_DEFINE_FLOAT(MC_PITCHRA_P_FW, 0.08f);
 
 /**
- * Pitch rate I gain for tilt servo
+ * Pitch rate I gain (FW)
  *
  * Pitch rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
  *
  * @min 0.0
  * @decimal 3
- * @increment 0.01
+ * @increment 0.001
  * @group Multicopter Attitude Control
  */
-PARAM_DEFINE_FLOAT(MC_PITCHRA_I_TS, 0.0f);
+PARAM_DEFINE_FLOAT(MC_PITCHRA_I_FW, 0.02f);
 
 /**
- * Pitch rate D gain for tilt servo
+ * Pitch rate D gain (FW)
  *
  * Pitch rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
  *
@@ -453,10 +500,10 @@ PARAM_DEFINE_FLOAT(MC_PITCHRA_I_TS, 0.0f);
  * @increment 0.0005
  * @group Multicopter Attitude Control
  */
-PARAM_DEFINE_FLOAT(MC_PITCHRA_D_TS, 0.0f);
+PARAM_DEFINE_FLOAT(MC_PITCHRA_D_FW, 0.0f);
 
 /**
- * Pitch rate feedforward for tilt servo
+ * Pitch rate feedforward (FW)
  *
  * Improves tracking performance.
  *
@@ -464,7 +511,54 @@ PARAM_DEFINE_FLOAT(MC_PITCHRA_D_TS, 0.0f);
  * @decimal 4
  * @group Multicopter Attitude Control
  */
-PARAM_DEFINE_FLOAT(MC_PITCHRA_FF_TS, 0.0f);
+PARAM_DEFINE_FLOAT(MC_PITCHRA_FF_FW, 0.0f);
+
+/**
+ * Yaw rate P gain (FW)
+ *
+ * Yaw rate proportional gain, i.e. control output for angular speed error 1 rad/s.
+ *
+ * @min 0.0
+ * @decimal 3
+ * @increment 0.001
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_YAWRA_P_FW, 0.05f);
+
+/**
+ * Yaw rate I gain (FW)
+ *
+ * Yaw rate integral gain. Can be set to compensate static thrust difference or gravity center offset.
+ *
+ * @min 0.0
+ * @decimal 3
+ * @increment 0.001
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_YAWRA_I_FW, 0.0f);
+
+/**
+ * Yaw rate D gain (FW)
+ *
+ * Yaw rate differential gain. Small values help reduce fast oscillations. If value is too big oscillations will appear again.
+ *
+ * @min 0.0
+ * @decimal 4
+ * @increment 0.0005
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_YAWRA_D_FW, 0.0f);
+
+/**
+ * Yaw rate feedforward (FW)
+ *
+ * Improves tracking performance.
+ *
+ * @min 0.0
+ * @decimal 4
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_YAWRA_FF_FW, 0.0f);
 
 /**
  * Position of tilt servo 1 in mc mode (up left)

@@ -1,0 +1,17 @@
+bool can_tilt
+float32 max_tilt_angle
+float32 tilt_angle
+float32 thrust_sp
+float32 left_right_rotor
+float32 forw_back_rotor
+float32 servo1
+float32 servo2
+float32 servo3
+float32 servo4
+float32 left_right_servo
+float32 forw_back_servo
+float32 aux1
+float32 aux2
+float32 aux3
+float32 aux4
+float32 aux5
