@@ -1054,6 +1054,8 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		_ts_1234(2) = _v44_tilt_flag.tilt_angle / M_PI_2_F * (_params.vt_tilt_3_fw - _params.vt_tilt_3_mc) + _params.vt_tilt_3_mc;
 		_ts_1234(3) = _v44_tilt_flag.tilt_angle / M_PI_2_F * (_params.vt_tilt_4_fw - _params.vt_tilt_4_mc) + _params.vt_tilt_4_mc;
 	}
+	PX4_INFO("Pitch sp is %.5f \n", (double)_v_att_sp.pitch_body);
+	PX4_INFO("Rotor tilt angle is %.5f \n", (double)_v44_tilt_flag.tilt_angle);
 
 	/* update integral only if not saturated on low limit and if motor commands are not saturated */
 	// 如果拉力期望值大于最小起飞拉力，且电机没有饱和

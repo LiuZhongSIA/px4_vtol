@@ -634,28 +634,6 @@ struct log_DPRS_s {
 	float temperature;
 };
 
-// v44 control status
-#define LOG_V44C_MSG 70
-struct log_V44C_s {
-	uint8_t can_tilt;
-	float max_tilt_angle;
-	float tilt_angle;
-	float thrust_sp;
-	float left_right_rotor;
-	float forw_back_rotor;
-	float servo1;
-	float servo2;
-	float servo3;
-	float servo4;
-	float left_right_servo;
-	float forw_back_servo;
-	float aux1;
-	float aux2;
-	float aux3;
-	float aux4;
-	float aux5;
-};
-
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -750,9 +728,7 @@ static const struct log_format_s log_formats[] = {
 	/* FMT: don't write format of format message, it's useless */
 	LOG_FORMAT(TIME, "Q", "StartTime"),
 	LOG_FORMAT(VER, "NZ", "Arch,FwGit"),
-	LOG_FORMAT(PARM, "Nf", "Name,Value"),
-	// v44 control status
-	LOG_FORMAT(V44C, "Bfffffffffffffff", "til,maxA,tilA,thr,LRr,FBr,se1,se2,se3,se4,LRs,FBs,a1,a2,a3,a4,a5")
+	LOG_FORMAT(PARM, "Nf", "Name,Value")
 };
 
 static const unsigned log_formats_num = sizeof(log_formats) / sizeof(log_formats[0]);
