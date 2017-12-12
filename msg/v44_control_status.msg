@@ -14,4 +14,3 @@ float32 aux1
 float32 aux2
 float32 aux3
 float32 aux4
-float32 aux5

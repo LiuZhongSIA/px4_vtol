@@ -1023,6 +1023,8 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	// 根据V44的控制，重新分配控制量
 	// ！！！
 	if (_v44_tilt_flag.can_tilt != true){
+		PX4_INFO("MC control: %.5f, %.5f, %.5f, %.5f \n", (double)_thrust_sp, (double)_att_control(0),
+		                                                  (double)_att_control(1), (double)_att_control(2));
 		_ts_1234(0) = _params.vt_tilt_1_mc;
 		_ts_1234(1) = _params.vt_tilt_2_mc;
 		_ts_1234(2) = _params.vt_tilt_3_mc;
@@ -1031,6 +1033,10 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		_att_control_ts(1) = 0.0f;
 		_att_control_ts(2) = 0.0f;
 	} else {
+		PX4_INFO("MC control: %.5f, %.5f, %.5f, %.5f \n", (double)_thrust_sp, (double)_att_control(0),
+		                                                  (double)_att_control(1), (double)_att_control(2));
+		PX4_INFO("FW control: %.5f, %.5f, %.5f \n", (double)_att_control_ts(0),
+		                                            (double)_att_control_ts(1), (double)_att_control_ts(2));
 		float In = M_PI_2_F - _v44_tilt_flag.tilt_angle; //注意PWM增加的方向与旋翼倾转角度相反
 		// 滚转和航向耦合，左右旋翼差动
 		float _att_control_0 = sinf(In) * _att_control(0) + cosf(In) * _att_control_ts(2);
@@ -1054,8 +1060,6 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		_ts_1234(2) = _v44_tilt_flag.tilt_angle / M_PI_2_F * (_params.vt_tilt_3_fw - _params.vt_tilt_3_mc) + _params.vt_tilt_3_mc;
 		_ts_1234(3) = _v44_tilt_flag.tilt_angle / M_PI_2_F * (_params.vt_tilt_4_fw - _params.vt_tilt_4_mc) + _params.vt_tilt_4_mc;
 	}
-	PX4_INFO("Pitch sp is %.5f \n", (double)_v_att_sp.pitch_body);
-	PX4_INFO("Rotor tilt angle is %.5f \n", (double)_v44_tilt_flag.tilt_angle);
 
 	/* update integral only if not saturated on low limit and if motor commands are not saturated */
 	// 如果拉力期望值大于最小起飞拉力，且电机没有饱和

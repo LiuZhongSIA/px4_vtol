@@ -111,6 +111,7 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/commander_state.h>
 #include <uORB/topics/cpuload.h>
+#include <uORB/topics/v44_control_status.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -1222,6 +1223,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct vehicle_land_detected_s land_detected;
 		struct cpuload_s cpuload;
 		struct vehicle_gps_position_s dual_gps_pos;
+		struct v44_control_status_s v44_control_status;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
@@ -1284,6 +1286,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_RPL6_s log_RPL6;
 			struct log_LOAD_s log_LOAD;
 			struct log_DPRS_s log_DPRS;
+			struct log_V44C_s log_V44C;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1334,6 +1337,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int commander_state_sub;
 		int cpuload_sub;
 		int diff_pres_sub;
+		int v44_contr_sub;
 	} subs;
 
 	subs.cmd_sub = -1;
@@ -1377,6 +1381,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.commander_state_sub = -1;
 	subs.cpuload_sub = -1;
 	subs.diff_pres_sub = -1;
+	subs.v44_contr_sub = -1;
 
 	/* add new topics HERE */
 
@@ -2319,6 +2324,28 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.msg_type = LOG_LOAD_MSG;
 			log_msg.body.log_LOAD.cpu_load = buf.cpuload.load;
 			LOGBUFFER_WRITE_AND_COUNT(LOAD);
+		}
+
+		/* --- V44 VONTROL STATUS --- */
+		if (copy_if_updated(ORB_ID(v44_control_status), &subs.v44_contr_sub, &buf.v44_control_status)) {
+			log_msg.msg_type = LOG_V44C_MSG;
+			log_msg.body.log_V44C.can_tilt = buf.v44_control_status.can_tilt;
+			log_msg.body.log_V44C.max_tilt_angle = buf.v44_control_status.max_tilt_angle;
+			log_msg.body.log_V44C.tilt_angle = buf.v44_control_status.tilt_angle;
+			log_msg.body.log_V44C.thrust_sp = buf.v44_control_status.thrust_sp;
+			log_msg.body.log_V44C.left_right_rotor = buf.v44_control_status.left_right_rotor;
+			log_msg.body.log_V44C.forw_back_rotor = buf.v44_control_status.forw_back_rotor;
+			log_msg.body.log_V44C.servo1 = buf.v44_control_status.servo1;
+			log_msg.body.log_V44C.servo2 = buf.v44_control_status.servo2;
+			log_msg.body.log_V44C.servo3 = buf.v44_control_status.servo3;
+			log_msg.body.log_V44C.servo4 = buf.v44_control_status.servo4;
+			log_msg.body.log_V44C.left_right_servo = buf.v44_control_status.left_right_servo;
+			log_msg.body.log_V44C.forw_back_servo = buf.v44_control_status.forw_back_servo;
+			log_msg.body.log_V44C.aux1 = buf.v44_control_status.aux1;
+			log_msg.body.log_V44C.aux2 = buf.v44_control_status.aux2;
+			log_msg.body.log_V44C.aux3 = buf.v44_control_status.aux3;
+			log_msg.body.log_V44C.aux4 = buf.v44_control_status.aux4;
+			LOGBUFFER_WRITE_AND_COUNT(V44C);
 		}
 
 		pthread_mutex_lock(&logbuffer_mutex);
