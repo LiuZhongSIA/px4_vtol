@@ -7,8 +7,17 @@
 # @maintainer liuzhong <liuzhong@sia.cn>
 #
 
-sh /etc/init.d/rc.mc_defaults
+set VEHICLE_TYPE mc
 
 set MIXER v44
+set PWM_OUT 1234
+set PWM_RATE 400
+set PWM_DISARMED 900
+set PWM_MIN 1075
+set PWM_MAX 1950
 
-set PWM_OUT 12345678
+set MIXER_AUX v44
+set PWM_AUX_RATE 400
+set PWM_AUX_OUT 1234
+set PWM_MIN 1075
+set PWM_MAX 1950

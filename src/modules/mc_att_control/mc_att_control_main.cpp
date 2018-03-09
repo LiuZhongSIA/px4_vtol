@@ -1023,8 +1023,8 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	// 根据V44的控制，重新分配控制量
 	// ！！！
 	if (_v44_tilt_flag.can_tilt != true){
-		PX4_INFO("MC control: %.5f, %.5f, %.5f, %.5f \n", (double)_thrust_sp, (double)_att_control(0),
-		                                                  (double)_att_control(1), (double)_att_control(2));
+		// PX4_INFO("MC control: %.5f, %.5f, %.5f, %.5f \n", (double)_thrust_sp, (double)_att_control(0),
+		                                                  // (double)_att_control(1), (double)_att_control(2));
 		_ts_1234(0) = _params.vt_tilt_1_mc;
 		_ts_1234(1) = _params.vt_tilt_2_mc;
 		_ts_1234(2) = _params.vt_tilt_3_mc;
@@ -1033,10 +1033,10 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		_att_control_ts(1) = 0.0f;
 		_att_control_ts(2) = 0.0f;
 	} else {
-		PX4_INFO("MC control: %.5f, %.5f, %.5f, %.5f \n", (double)_thrust_sp, (double)_att_control(0),
-		                                                  (double)_att_control(1), (double)_att_control(2));
-		PX4_INFO("FW control: %.5f, %.5f, %.5f \n", (double)_att_control_ts(0),
-		                                            (double)_att_control_ts(1), (double)_att_control_ts(2));
+		// PX4_INFO("MC control: %.5f, %.5f, %.5f, %.5f \n", (double)_thrust_sp, (double)_att_control(0),
+		                                                  // (double)_att_control(1), (double)_att_control(2));
+		// PX4_INFO("FW control: %.5f, %.5f, %.5f \n", (double)_att_control_ts(0),
+		                                            // (double)_att_control_ts(1), (double)_att_control_ts(2));
 		float In = M_PI_2_F - _v44_tilt_flag.tilt_angle; //注意PWM增加的方向与旋翼倾转角度相反
 		// MC滚转和FW航向耦合，左右旋翼差动
 		float _att_control_0 = sinf(In) * _att_control(0) + cosf(In) * _att_control_ts(2);
@@ -1364,6 +1364,10 @@ MulticopterAttitudeControl::task_main()
 				_v44_control_status.left_right_servo = _att_control_ts(2);
 				_v44_control_status.forw_back_servo = _att_control_ts(1);
 				_v44_control_status.timestamp = hrt_absolute_time();
+
+				PX4_INFO("V44 data: %.5f, %.5f, %.5f \n", (double)_v44_control_status.can_tilt,
+		                                                  (double)_actuators1.control[4], 
+														  (double)_actuators1.control[2]);
 
 				if (!_actuators_0_circuit_breaker_enabled) {
 					if (_actuators_0_pub != nullptr) { //发布控制量给混控！！！
