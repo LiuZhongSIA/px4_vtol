@@ -1038,15 +1038,15 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		PX4_INFO("FW control: %.5f, %.5f, %.5f \n", (double)_att_control_ts(0),
 		                                            (double)_att_control_ts(1), (double)_att_control_ts(2));
 		float In = M_PI_2_F - _v44_tilt_flag.tilt_angle; //注意PWM增加的方向与旋翼倾转角度相反
-		// 滚转和航向耦合，左右旋翼差动
+		// MC滚转和FW航向耦合，左右旋翼差动
 		float _att_control_0 = sinf(In) * _att_control(0) + cosf(In) * _att_control_ts(2);
 		float _att_control_ts_0 = 0;
 		// 俯仰
 		float _att_control_1 = sinf(In) * _att_control(1);
 		float _att_control_ts_1 = -cosf(In) * _att_control_ts(1);
-		// 航向和滚转耦合，左右倾转轴差动
-		float _att_control_2 = 0;
-		float _att_control_ts_2 = -cosf(In) * _att_control_ts(0) + sinf(In) * _att_control(2);
+		// MC航向、FW滚转
+		float _att_control_2 = sinf(In) * _att_control(2);
+		float _att_control_ts_2 = -cosf(In) * _att_control_ts(0);
 		// 赋值
 		_att_control(0) = _att_control_0;       //电机控制
 		_att_control(1) = _att_control_1;
@@ -1082,7 +1082,7 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 			}
 		} else { //如果允许旋翼倾转，需要重新设计积分限幅
 			int i;
-			i = 0; //对应于左右旋翼差动
+			i = 0; //对应于左右旋翼差动（MC滚转控制、FW航向控制）
 			if (fabsf(_att_control(i)) < _thrust_sp){
 				float rate_i = _rates_int(i) + _params.rate_i(i) * rates_err(i) * dt;
 				float rate_i_fw = _rates_int_fw(i + 2) + _params.rate_i_fw(i + 2) * rates_err(i + 2) * dt;
@@ -1114,16 +1114,17 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 				_att_control_ts(i) < RATES_I_LIMIT_TS * _v44_tilt_flag.max_tilt_angle / M_PI_2_F * MF_PWM_range){
 				_rates_int_fw(i) = rate_i_fw;
 			}
-			i = 2; //对应于左右倾转轴差动
-			float rate_i = _rates_int(i) + _params.rate_i(i) * rates_err(i) * dt;
-			rate_i_fw = _rates_int_fw(i - 2) + _params.rate_i_fw(i - 2) * rates_err(i - 2) * dt;
-			if (PX4_ISFINITE(rate_i) && 
-				rate_i > -RATES_I_LIMIT_TS * _v44_tilt_flag.max_tilt_angle / M_PI_2_F * MF_PWM_range &&
-				rate_i < RATES_I_LIMIT_TS * _v44_tilt_flag.max_tilt_angle / M_PI_2_F * MF_PWM_range &&
-				_att_control_ts(i) > -RATES_I_LIMIT_TS * _v44_tilt_flag.max_tilt_angle / M_PI_2_F * MF_PWM_range &&
-				_att_control_ts(i) < RATES_I_LIMIT_TS * _v44_tilt_flag.max_tilt_angle / M_PI_2_F * MF_PWM_range){
-				_rates_int(i) = rate_i;
+			i = 2; //MC航向控制、FW滚转控制
+			if (fabsf(_att_control(i)) < _thrust_sp) {
+				float rate_i = _rates_int(i) + _params.rate_i(i) * rates_err(i) * dt;
+				if (PX4_ISFINITE(rate_i) &&
+					rate_i > -RATES_I_LIMIT && rate_i < RATES_I_LIMIT &&
+					_att_control(i) > -RATES_I_LIMIT && _att_control(i) < RATES_I_LIMIT &&
+					!((i == AXIS_INDEX_YAW) && _motor_limits.yaw)) {
+					_rates_int(i) = rate_i;
+				}
 			}
+			rate_i_fw = _rates_int_fw(i - 2) + _params.rate_i_fw(i - 2) * rates_err(i - 2) * dt;
 			if (PX4_ISFINITE(rate_i_fw) && 
 				rate_i_fw > -RATES_I_LIMIT_TS * _v44_tilt_flag.max_tilt_angle / M_PI_2_F * MF_PWM_range &&
 				rate_i_fw < RATES_I_LIMIT_TS * _v44_tilt_flag.max_tilt_angle / M_PI_2_F * MF_PWM_range &&

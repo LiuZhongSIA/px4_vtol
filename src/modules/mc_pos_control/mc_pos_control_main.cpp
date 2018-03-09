@@ -2138,7 +2138,8 @@ MulticopterPositionControl::task_main()
 			if (!_control_mode.flag_control_velocity_enabled) {
 				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转、俯仰角度（V44待修改）
 				_att_sp.pitch_body = -_manual.x * _params.man_pitch_max;
-				if(_manual.transition_switch == manual_control_setpoint_s::SWITCH_POS_ON)
+				if(_manual.transition_switch == manual_control_setpoint_s::SWITCH_POS_ON
+				   && _manual.x >= 0.0f)
 				{
 					_att_sp.pitch_body = 0.0f;
 					_v44_tilt_flag_sp.can_tilt = true;

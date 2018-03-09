@@ -404,7 +404,6 @@ PARAM_DEFINE_FLOAT(MC_TPA_BREAK, 1.0f);
  */
 PARAM_DEFINE_FLOAT(MC_TPA_SLOPE, 1.0f);
 
-
 /**
  * Whether to scale outputs by battery power level
  *
@@ -418,6 +417,9 @@ PARAM_DEFINE_FLOAT(MC_TPA_SLOPE, 1.0f);
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_INT32(MC_BAT_SCALE_EN, 0);
+
+/*************************************************************************************************/
+/*************************************************************************************************/
 
 /**
  * Roll rate P gain (FW)
@@ -559,6 +561,9 @@ PARAM_DEFINE_FLOAT(MC_YAWRA_D_FW, 0.0f);
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_YAWRA_FF_FW, 0.0f);
+
+/*************************************************************************************************/
+/*************************************************************************************************/
 
 /**
  * Position of tilt servo 1 in mc mode (up left)
