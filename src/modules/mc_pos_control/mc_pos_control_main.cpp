@@ -149,6 +149,19 @@ private:
 	orb_advert_t    _v44_tilt_flag_sp_pub;
 	orb_id_t _attitude_setpoint_id; //姿态期望发布的目标ID
 
+	// V44 倾转
+	enum vtol_mode {
+		MC_MODE = 0,			/**< vtol is in multicopter mode */
+		TRANSITION_FRONT_P1,	/**< vtol is in front transition part 1 mode */
+		TRANSITION_FRONT_P2,	/**< vtol is in front transition part 2 mode */
+		FW_MODE,			    /**< vtol is in fixed wing mode */
+		TRANSITION_BACK 		/**< vtol is in back transition mode */
+	};
+	struct {
+		vtol_mode flight_mode;			/**< vtol flight mode, defined by enum vtol_mode */
+		hrt_abstime transition_start;	/**< absoulte time at which front transition started */
+	} _vtol_schedule;
+
 	// 结构体，要订阅或者发布的各种消息
 	struct vehicle_status_s 			_vehicle_status; 	/**< vehicle status */
 	struct vehicle_land_detected_s 			_vehicle_land_detected;	/**< vehicle land detected */
@@ -451,6 +464,10 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_vxy_reset_counter(0),
 	_heading_reset_counter(0)
 {
+	// V44倾转变量
+	_vtol_schedule.flight_mode = MC_MODE; //默认是在多轴模式下
+	_vtol_schedule.transition_start = 0;
+
 	// Make the quaternion valid for control state
 	_ctrl_state.q[0] = 1.0f;
 	// 各个变量初始化
@@ -2136,26 +2153,57 @@ MulticopterPositionControl::task_main()
 			}
 			/* control roll and pitch directly if no aiding velocity controller is active */
 			if (!_control_mode.flag_control_velocity_enabled) {
+				/***********************************************************************************/
+
+				/* V44倾转控制状态机 */
+				bool fw_is_request;
+				if(_manual.transition_switch == manual_control_setpoint_s::SWITCH_POS_ON)
+					fw_is_request = true;
+				else
+					fw_is_request = false;
+				// 计算飞机的纵向速度
+				float longitudinalV = 0.0f;
+				float vxvy_yaw = cosf(_yaw) * _local_pos.vx +sinf(_yaw) * _local_pos.vy;
+				longitudinalV = sqrtf(vxvy_yaw * vxvy_yaw + _local_pos.vz * _local_pos.vz);
+				if(fw_is_request)
+				{
+					_v44_tilt_flag_sp.tilt_angle = 0;
+				}
+				else if(!fw_is_request)
+				{
+					_v44_tilt_flag_sp.tilt_angle = 0;
+				}
+
+				// 根据处于的状态，决定杆量的生成量
+				// 记录倾转的状态
 				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转、俯仰角度（V44待修改）
 				_att_sp.pitch_body = -_manual.x * _params.man_pitch_max;
-				if(_manual.transition_switch == manual_control_setpoint_s::SWITCH_POS_ON
-				   && _manual.x >= 0.0f)
+				if(_vtol_schedule.flight_mode == MC_MODE)
 				{
-					_att_sp.pitch_body = 0.0f;
-					_v44_tilt_flag_sp.can_tilt = true;
-					_v44_tilt_flag_sp.max_tilt_angle = _params.man_pitch_max;
-					_v44_tilt_flag_sp.tilt_angle = _manual.x * _params.man_pitch_max; //以弧度为单位
-					_v44_tilt_flag_sp.pitch_sp = _att_sp.pitch_body;
-					_v44_tilt_flag_sp.timestamp = hrt_absolute_time();
+					_v44_tilt_flag_sp.tilt_mode = MC_MODE;
+					if(_manual.x >= 0)
+					{
+						_v44_tilt_flag_sp.tilt_angle = _manual.x * _params.man_pitch_max; //以弧度为单位
+						_att_sp.pitch_body = 0;
+					}
 				}
 				else
 				{
-					_v44_tilt_flag_sp.can_tilt = false;
-					_v44_tilt_flag_sp.max_tilt_angle = 0.0f;
-					_v44_tilt_flag_sp.tilt_angle = 0.0f;
-					_v44_tilt_flag_sp.pitch_sp = _att_sp.pitch_body;
-					_v44_tilt_flag_sp.timestamp = hrt_absolute_time();
+					if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P1)
+						_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P1;
+					if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2)
+						_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P1;
+					if(_vtol_schedule.flight_mode == FW_MODE)
+						_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P1;
+					if(_vtol_schedule.flight_mode == TRANSITION_BACK)
+						_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK;
 				}
+				_v44_tilt_flag_sp.max_tilt_angle = _params.man_pitch_max; //该变量和积分器的限幅相关
+				_v44_tilt_flag_sp.lon_velocity = longitudinalV;
+				_v44_tilt_flag_sp.pitch_sp = _att_sp.pitch_body;
+				_v44_tilt_flag_sp.timestamp = hrt_absolute_time();
+
+				/***********************************************************************************/
 				/* only if optimal recovery is not used, modify roll/pitch */
 				if (_params.opt_recover <= 0) {//避免航向误差的影响
 					// construct attitude setpoint rotation matrix. modify the setpoints for roll

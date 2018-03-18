@@ -2329,9 +2329,10 @@ int sdlog2_thread_main(int argc, char *argv[])
 		/* --- V44 VONTROL STATUS --- */
 		if (copy_if_updated(ORB_ID(v44_control_status), &subs.v44_contr_sub, &buf.v44_control_status)) {
 			log_msg.msg_type = LOG_V44C_MSG;
-			log_msg.body.log_V44C.can_tilt = buf.v44_control_status.can_tilt;
+			log_msg.body.log_V44C.tilt_mode = buf.v44_control_status.tilt_mode;
 			log_msg.body.log_V44C.max_tilt_angle = buf.v44_control_status.max_tilt_angle;
 			log_msg.body.log_V44C.tilt_angle = buf.v44_control_status.tilt_angle;
+			log_msg.body.log_V44C.lon_velocity = buf.v44_control_status.lon_velocity;
 			log_msg.body.log_V44C.thrust_sp = buf.v44_control_status.thrust_sp;
 			log_msg.body.log_V44C.left_right_rotor = buf.v44_control_status.left_right_rotor;
 			log_msg.body.log_V44C.forw_back_rotor = buf.v44_control_status.forw_back_rotor;
@@ -2344,7 +2345,6 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.body.log_V44C.aux1 = buf.v44_control_status.aux1;
 			log_msg.body.log_V44C.aux2 = buf.v44_control_status.aux2;
 			log_msg.body.log_V44C.aux3 = buf.v44_control_status.aux3;
-			log_msg.body.log_V44C.aux4 = buf.v44_control_status.aux4;
 			LOGBUFFER_WRITE_AND_COUNT(V44C);
 		}
 
