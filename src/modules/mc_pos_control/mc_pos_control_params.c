@@ -390,7 +390,7 @@ PARAM_DEFINE_FLOAT(MPC_MAN_R_MAX, 35.0f);
  * @decimal 1
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(MPC_MAN_P_MAX, 35.0f);
+PARAM_DEFINE_FLOAT(MPC_MAN_P_MAX, 45.0f);
 
 /**
  * Max manual yaw rate
@@ -468,3 +468,78 @@ PARAM_DEFINE_FLOAT(MPC_ACC_HOR_MAX, 5.0f);
  * @group Multicopter Position Control
  */
 PARAM_DEFINE_INT32(MPC_ALT_MODE, 0);
+
+/*************************************************************************************************/
+/*************************************************************************************************/
+
+/**
+ * Position of tilt servo in middle of transition procedure
+ *
+ * @unit deg
+ * @min 0.0
+ * @max 90.0
+ * @increment 0.1
+ * @decimal 1
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_MIDDLE, 45.0f);
+
+/**
+ * Position of tilt servo in end of transition procedure
+ *
+ * @unit deg
+ * @min 0.0
+ * @max 90.0
+ * @increment 0.1
+ * @decimal 1
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VT_TILT_END, 90.0f);
+
+/**
+ * Key speed transition from middle to end
+ *
+ * @unit m/s
+ * @min 0.0
+ * @max 20.0
+ * @increment 0.01
+ * @decimal 2
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VT_KEY_SPEED, 7.0f);
+
+/**
+ * Tilt speed from MC to middle
+ *
+ * @unit deg/s
+ * @min 0.0
+ * @max 360
+ * @increment 0.01
+ * @decimal 2
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VT_SPEED_MC_M, 20.0f);
+
+/**
+ * Tilt speed from middle to end
+ *
+ * @unit deg/s
+ * @min 0.0
+ * @max 360
+ * @increment 0.01
+ * @decimal 2
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VT_SPEED_M_END, 45.0f);
+
+/**
+ * Tilt speed from end to MC
+ *
+ * @unit deg/s
+ * @min 0.0
+ * @max 360
+ * @increment 0.01
+ * @decimal 2
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(VT_SPEED_END_MC, 90.0f);

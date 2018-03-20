@@ -221,6 +221,13 @@ private:
 		param_t alt_mode;
 		param_t opt_recover;
 
+		// 新添加的参数
+		param_t v44_middle;
+		param_t v44_end;
+		param_t v44_keyspeed;
+		param_t v44_MC2m_speed;
+		param_t v44_m2end_speed;
+		param_t v44_end2MC_speed;
 	}		_params_handles;		/**< handles for interesting parameters */
 
 	// 存储地面站参数
@@ -257,6 +264,14 @@ private:
 		math::Vector<3> vel_max;
 		math::Vector<3> vel_cruise;
 		math::Vector<3> sp_offs_max;
+
+		// 新添加的参数
+		float v44_middle;
+		float v44_end;
+		float v44_keyspeed;
+		float v44_MC2m_speed;
+		float v44_m2end_speed;
+		float v44_end2MC_speed;
 	}		_params;
 
 	// 地图上的参考位置
@@ -535,6 +550,20 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_params_handles.alt_mode = param_find("MPC_ALT_MODE"); //高度保持 or 地形保持
 	_params_handles.opt_recover = param_find("VT_OPT_RECOV_EN"); //定义在vtol_att_control_params.c
 
+	// 新添加的参数
+	_params.v44_middle = math::radians(45.0f);
+	_params.v44_end = math::radians(90.0f);
+	_params.v44_keyspeed = 7.0f;
+	_params.v44_MC2m_speed = math::radians(20.0f);
+	_params.v44_m2end_speed = math::radians(45.0f);
+	_params.v44_end2MC_speed = math::radians(90.0f);
+	_params_handles.v44_middle = param_find("VT_TILT_MIDDLE");
+	_params_handles.v44_end = param_find("VT_TILT_END");
+	_params_handles.v44_keyspeed = param_find("VT_KEY_SPEED");
+	_params_handles.v44_MC2m_speed = param_find("VT_SPEED_MC_M");
+	_params_handles.v44_m2end_speed = param_find("VT_SPEED_M_END");
+	_params_handles.v44_end2MC_speed = param_find("VT_SPEED_END_MC");
+
 	/* fetch initial parameter values */
 	parameters_update(true);
 }
@@ -672,6 +701,20 @@ MulticopterPositionControl::parameters_update(bool force)
 		/* takeoff and land velocities should not exceed maximum */
 		_params.tko_speed = fminf(_params.tko_speed, _params.vel_max_up);
 		_params.land_speed = fminf(_params.land_speed, _params.vel_max_down);
+
+		// 新添加的参数
+		param_get(_params_handles.v44_middle, &v);
+		_params.v44_middle = math::radians(v);
+		param_get(_params_handles.v44_end, &v);
+		_params.v44_end = math::radians(v);
+		param_get(_params_handles.v44_keyspeed, &v);
+		_params.v44_keyspeed = v;
+		param_get(_params_handles.v44_MC2m_speed, &v);
+		_params.v44_MC2m_speed = math::radians(v);
+		param_get(_params_handles.v44_m2end_speed, &v);
+		_params.v44_m2end_speed = math::radians(v);
+		param_get(_params_handles.v44_end2MC_speed, &v);
+		_params.v44_end2MC_speed = math::radians(v);
 	}
 
 	return OK;
@@ -2167,11 +2210,70 @@ MulticopterPositionControl::task_main()
 				longitudinalV = sqrtf(vxvy_yaw * vxvy_yaw + _local_pos.vz * _local_pos.vz);
 				if(fw_is_request)
 				{
-					_v44_tilt_flag_sp.tilt_angle = 0;
+					switch(_vtol_schedule.flight_mode){
+						case MC_MODE:
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							_vtol_schedule.flight_mode = TRANSITION_FRONT_P1;
+							break;
+						case TRANSITION_FRONT_P1:
+							_v44_tilt_flag_sp.tilt_angle = _v44_tilt_flag_sp.tilt_angle +
+								(float)hrt_elapsed_time(&_vtol_schedule.transition_start) / 1000000.0f * _params.v44_MC2m_speed;
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							if (_v44_tilt_flag_sp.tilt_angle >= _params.v44_middle)
+							{
+								_v44_tilt_flag_sp.tilt_angle = _params.v44_middle;
+								if (longitudinalV >= _params.v44_keyspeed || !_arming.armed || _vehicle_land_detected.landed)
+									_vtol_schedule.flight_mode = TRANSITION_FRONT_P2;
+							}
+							break;
+						case TRANSITION_FRONT_P2:
+							_v44_tilt_flag_sp.tilt_angle = _v44_tilt_flag_sp.tilt_angle +
+								(float)hrt_elapsed_time(&_vtol_schedule.transition_start) / 1000000.0f * _params.v44_m2end_speed;
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							if (_v44_tilt_flag_sp.tilt_angle >= _params.v44_end)
+							{
+								_v44_tilt_flag_sp.tilt_angle = _params.v44_end;
+								_vtol_schedule.flight_mode = FW_MODE;
+							}
+							break;
+						case FW_MODE:
+							_v44_tilt_flag_sp.tilt_angle = _params.v44_end;
+							break;
+						case TRANSITION_BACK:
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							_vtol_schedule.flight_mode = TRANSITION_FRONT_P2;
+							break;
+					}
 				}
 				else if(!fw_is_request)
 				{
-					_v44_tilt_flag_sp.tilt_angle = 0;
+					switch(_vtol_schedule.flight_mode){
+						case MC_MODE:
+							break;
+						case TRANSITION_FRONT_P1:
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							_vtol_schedule.flight_mode = TRANSITION_BACK;
+							break;
+						case TRANSITION_FRONT_P2:
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							_vtol_schedule.flight_mode = TRANSITION_BACK;
+							break;
+						case FW_MODE:
+							_v44_tilt_flag_sp.tilt_angle = _params.v44_end;
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							_vtol_schedule.flight_mode = TRANSITION_BACK;
+							break;
+						case TRANSITION_BACK:
+							_v44_tilt_flag_sp.tilt_angle = _v44_tilt_flag_sp.tilt_angle -
+								(float)hrt_elapsed_time(&_vtol_schedule.transition_start) / 1000000.0f * _params.v44_end2MC_speed;
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							if (_v44_tilt_flag_sp.tilt_angle <= 0)
+							{
+								_v44_tilt_flag_sp.tilt_angle = 0;
+								_vtol_schedule.flight_mode = MC_MODE;
+							}
+							break;
+					}
 				}
 
 				// 根据处于的状态，决定杆量的生成量
@@ -2186,6 +2288,8 @@ MulticopterPositionControl::task_main()
 						_v44_tilt_flag_sp.tilt_angle = _manual.x * _params.man_pitch_max; //以弧度为单位
 						_att_sp.pitch_body = 0;
 					}
+					else
+						_v44_tilt_flag_sp.tilt_angle = 0;
 				}
 				else
 				{
@@ -2205,7 +2309,9 @@ MulticopterPositionControl::task_main()
 
 				/***********************************************************************************/
 				/* only if optimal recovery is not used, modify roll/pitch */
-				if (_params.opt_recover <= 0) {//避免航向误差的影响
+				if (_params.opt_recover <= 0 &&
+				    ((_vtol_schedule.flight_mode == MC_MODE && _manual.x < 0) ||
+					 _vtol_schedule.flight_mode ==  TRANSITION_FRONT_P1)) {//避免航向误差的影响
 					// construct attitude setpoint rotation matrix. modify the setpoints for roll
 					// and pitch such that they reflect the user's intention even if a yaw error
 					// (yaw_sp - yaw) is present. In the presence of a yaw error constructing a rotation matrix
