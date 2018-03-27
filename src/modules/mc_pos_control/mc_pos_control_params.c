@@ -530,7 +530,7 @@ PARAM_DEFINE_FLOAT(VT_SPEED_MC_M, 20.0f);
  * @decimal 2
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VT_SPEED_M_END, 45.0f);
+PARAM_DEFINE_FLOAT(VT_SPEED_M_END, 90.0f);
 
 /**
  * Tilt speed from end to MC
@@ -542,4 +542,4 @@ PARAM_DEFINE_FLOAT(VT_SPEED_M_END, 45.0f);
  * @decimal 2
  * @group Multicopter Position Control
  */
-PARAM_DEFINE_FLOAT(VT_SPEED_END_MC, 90.0f);
+PARAM_DEFINE_FLOAT(VT_SPEED_END_MC, 45.0f);

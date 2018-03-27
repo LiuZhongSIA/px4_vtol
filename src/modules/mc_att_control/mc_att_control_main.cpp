@@ -194,7 +194,8 @@ private:
 		TRANSITION_FRONT_P1,	/**< vtol is in front transition part 1 mode */
 		TRANSITION_FRONT_P2,	/**< vtol is in front transition part 2 mode */
 		FW_MODE,			    /**< vtol is in fixed wing mode */
-		TRANSITION_BACK 		/**< vtol is in back transition mode */
+		TRANSITION_BACK_P1,     /**< vtol is in back transition mode */ //Part 1
+		TRANSITION_BACK_P2      //Part 2
 	};
 
 	struct {
@@ -1107,8 +1108,14 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 		}
 		// 飞行速度较低时，固定翼控制器的积分分离
 		if (_v44_tilt_flag.tilt_mode == MC_MODE ||
-		    _v44_tilt_flag.tilt_mode == TRANSITION_FRONT_P1)
+		    _v44_tilt_flag.tilt_mode == TRANSITION_FRONT_P1 ||
+			_v44_tilt_flag.tilt_mode == TRANSITION_BACK_P2)
 			_rates_int_fw.zero();
+		// 飞行速度较快时，多旋翼控制器的积分分离
+		if (_v44_tilt_flag.tilt_mode == FW_MODE ||
+		    _v44_tilt_flag.tilt_mode == TRANSITION_FRONT_P2 ||
+			_v44_tilt_flag.tilt_mode == TRANSITION_BACK_P1)
+			_rates_int.zero();
 	}
 }
 

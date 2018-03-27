@@ -155,7 +155,8 @@ private:
 		TRANSITION_FRONT_P1,	/**< vtol is in front transition part 1 mode */
 		TRANSITION_FRONT_P2,	/**< vtol is in front transition part 2 mode */
 		FW_MODE,			    /**< vtol is in fixed wing mode */
-		TRANSITION_BACK 		/**< vtol is in back transition mode */
+		TRANSITION_BACK_P1,     /**< vtol is in back transition mode */ //Part 1
+		TRANSITION_BACK_P2      //Part 2
 	};
 	struct {
 		vtol_mode flight_mode;			/**< vtol flight mode, defined by enum vtol_mode */
@@ -2239,9 +2240,12 @@ MulticopterPositionControl::task_main()
 						case FW_MODE:
 							_v44_tilt_flag_sp.tilt_angle = _params.v44_end;
 							break;
-						case TRANSITION_BACK:
+						case TRANSITION_BACK_P1:
 							_vtol_schedule.transition_start = hrt_absolute_time();
 							_vtol_schedule.flight_mode = TRANSITION_FRONT_P2;
+						case TRANSITION_BACK_P2:
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							_vtol_schedule.flight_mode = TRANSITION_FRONT_P1;
 							break;
 					}
 				}
@@ -2252,18 +2256,29 @@ MulticopterPositionControl::task_main()
 							break;
 						case TRANSITION_FRONT_P1:
 							_vtol_schedule.transition_start = hrt_absolute_time();
-							_vtol_schedule.flight_mode = TRANSITION_BACK;
+							_vtol_schedule.flight_mode = TRANSITION_BACK_P2;
 							break;
 						case TRANSITION_FRONT_P2:
 							_vtol_schedule.transition_start = hrt_absolute_time();
-							_vtol_schedule.flight_mode = TRANSITION_BACK;
+							_vtol_schedule.flight_mode = TRANSITION_BACK_P1;
 							break;
 						case FW_MODE:
 							_v44_tilt_flag_sp.tilt_angle = _params.v44_end;
 							_vtol_schedule.transition_start = hrt_absolute_time();
-							_vtol_schedule.flight_mode = TRANSITION_BACK;
+							_vtol_schedule.flight_mode = TRANSITION_BACK_P1;
 							break;
-						case TRANSITION_BACK:
+						case TRANSITION_BACK_P1:
+							_v44_tilt_flag_sp.tilt_angle = _v44_tilt_flag_sp.tilt_angle -
+								(float)hrt_elapsed_time(&_vtol_schedule.transition_start) / 1000000.0f * _params.v44_end2MC_speed;
+							_vtol_schedule.transition_start = hrt_absolute_time();
+							if (_v44_tilt_flag_sp.tilt_angle <= _params.v44_middle)
+							{
+								_v44_tilt_flag_sp.tilt_angle = _params.v44_middle;
+								if (longitudinalV <= _params.v44_keyspeed || !_arming.armed || _vehicle_land_detected.landed)
+									_vtol_schedule.flight_mode = TRANSITION_BACK_P2;
+							}
+							break;
+						case TRANSITION_BACK_P2:
 							_v44_tilt_flag_sp.tilt_angle = _v44_tilt_flag_sp.tilt_angle -
 								(float)hrt_elapsed_time(&_vtol_schedule.transition_start) / 1000000.0f * _params.v44_end2MC_speed;
 							_vtol_schedule.transition_start = hrt_absolute_time();
@@ -2296,11 +2311,13 @@ MulticopterPositionControl::task_main()
 					if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P1)
 						_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P1;
 					if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2)
-						_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P1;
+						_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P2;
 					if(_vtol_schedule.flight_mode == FW_MODE)
-						_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P1;
-					if(_vtol_schedule.flight_mode == TRANSITION_BACK)
-						_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK;
+						_v44_tilt_flag_sp.tilt_mode = FW_MODE;
+					if(_vtol_schedule.flight_mode == TRANSITION_BACK_P1)
+						_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK_P1;
+					if(_vtol_schedule.flight_mode == TRANSITION_BACK_P2)
+						_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK_P2;
 				}
 				_v44_tilt_flag_sp.max_tilt_angle = _params.man_pitch_max; //该变量和积分器的限幅相关
 				_v44_tilt_flag_sp.lon_velocity = longitudinalV;
