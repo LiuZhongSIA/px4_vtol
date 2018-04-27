@@ -2105,6 +2105,86 @@ MulticopterPositionControl::task_main()
 						_att_sp.roll_body = euler(0);
 						_att_sp.pitch_body = euler(1);
 						/* yaw already used to construct rot matrix, but actual rotation matrix can have different yaw near singularity */
+						/**************************************************************************************/
+						/* V44定点旋停下的矢量控制 ************************************************************* */
+						/**************************************************************************************/
+						// 计算飞机的纵向速度
+						float longitudinalV = 0.0f;
+						float vxvy_yaw = cosf(_yaw) * _local_pos.vx +sinf(_yaw) * _local_pos.vy;
+						longitudinalV = sqrtf(vxvy_yaw * vxvy_yaw + _local_pos.vz * _local_pos.vz);
+						// 位置辅助时，必须在多轴模式下
+						switch(_vtol_schedule.flight_mode){
+							case MC_MODE:
+								break;
+							case TRANSITION_FRONT_P1:
+								_vtol_schedule.transition_start = hrt_absolute_time();
+								_vtol_schedule.flight_mode = TRANSITION_BACK_P2;
+								break;
+							case TRANSITION_FRONT_P2:
+								_vtol_schedule.transition_start = hrt_absolute_time();
+								_vtol_schedule.flight_mode = TRANSITION_BACK_P1;
+								break;
+							case FW_MODE:
+								_v44_tilt_flag_sp.tilt_angle = _params.v44_end;
+								_vtol_schedule.transition_start = hrt_absolute_time();
+								_vtol_schedule.flight_mode = TRANSITION_BACK_P1;
+								break;
+							case TRANSITION_BACK_P1:
+								_v44_tilt_flag_sp.tilt_angle = _v44_tilt_flag_sp.tilt_angle -
+									(float)hrt_elapsed_time(&_vtol_schedule.transition_start) / 1000000.0f * _params.v44_end2MC_speed;
+								_vtol_schedule.transition_start = hrt_absolute_time();
+								if (_v44_tilt_flag_sp.tilt_angle <= _params.v44_middle)
+								{
+									_v44_tilt_flag_sp.tilt_angle = _params.v44_middle;
+									if (longitudinalV <= _params.v44_keyspeed || !_arming.armed || _vehicle_land_detected.landed)
+										_vtol_schedule.flight_mode = TRANSITION_BACK_P2;
+								}
+								break;
+							case TRANSITION_BACK_P2:
+								_v44_tilt_flag_sp.tilt_angle = _v44_tilt_flag_sp.tilt_angle -
+									(float)hrt_elapsed_time(&_vtol_schedule.transition_start) / 1000000.0f * _params.v44_end2MC_speed;
+								_vtol_schedule.transition_start = hrt_absolute_time();
+								if (_v44_tilt_flag_sp.tilt_angle <= 0)
+								{
+									_v44_tilt_flag_sp.tilt_angle = 0;
+									_vtol_schedule.flight_mode = MC_MODE;
+								}
+							break;
+							// 根据处于的状态，决定姿态期望与旋翼倾转角度
+							// 记录倾转的状态
+							if(_vtol_schedule.flight_mode == MC_MODE)
+							{
+								_v44_tilt_flag_sp.tilt_mode = MC_MODE;
+								if(_att_sp.pitch_body < 0)
+								{
+									_v44_tilt_flag_sp.tilt_angle = -_att_sp.pitch_body; //以弧度为单位
+									_att_sp.pitch_body = 0;
+								}
+								else
+									_v44_tilt_flag_sp.tilt_angle = 0;
+							}
+							else
+							{
+								if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P1)
+									_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P1;
+								if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2)
+									_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P2;
+								if(_vtol_schedule.flight_mode == FW_MODE)
+									_v44_tilt_flag_sp.tilt_mode = FW_MODE;
+								if(_vtol_schedule.flight_mode == TRANSITION_BACK_P1)
+									_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK_P1;
+								if(_vtol_schedule.flight_mode == TRANSITION_BACK_P2)
+									_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK_P2;
+							}
+							_v44_tilt_flag_sp.max_tilt_angle = _params.man_pitch_max; //该变量和积分器的限幅相关
+							_v44_tilt_flag_sp.lon_velocity = longitudinalV;
+							_v44_tilt_flag_sp.pitch_sp = _att_sp.pitch_body;
+							_v44_tilt_flag_sp.timestamp = hrt_absolute_time();
+							// 姿态角期望转为四元数
+							q_sp = matrix::Eulerf(_att_sp.roll_body, _att_sp.pitch_body, _att_sp.yaw_body);
+							memcpy(&_att_sp.q_d[0], q_sp.data(), sizeof(_att_sp.q_d));
+							_att_sp.q_d_valid = true;
+						}
 					} else if (!_control_mode.flag_control_manual_enabled) {
 						/* autonomous altitude control without position control (failsafe landing),
 						 * force level attitude, don't change yaw */
