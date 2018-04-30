@@ -2149,42 +2149,42 @@ MulticopterPositionControl::task_main()
 									_v44_tilt_flag_sp.tilt_angle = 0;
 									_vtol_schedule.flight_mode = MC_MODE;
 								}
-							break;
-							// 根据处于的状态，决定姿态期望与旋翼倾转角度
-							// 记录倾转的状态
-							if(_vtol_schedule.flight_mode == MC_MODE)
+								break;
+						}
+						// 根据处于的状态，决定姿态期望与旋翼倾转角度
+						// 记录倾转的状态
+						if(_vtol_schedule.flight_mode == MC_MODE)
+						{
+							_v44_tilt_flag_sp.tilt_mode = MC_MODE;
+							if(_att_sp.pitch_body < 0)
 							{
-								_v44_tilt_flag_sp.tilt_mode = MC_MODE;
-								if(_att_sp.pitch_body < 0)
-								{
-									_v44_tilt_flag_sp.tilt_angle = -_att_sp.pitch_body; //以弧度为单位
-									_att_sp.pitch_body = 0;
-								}
-								else
-									_v44_tilt_flag_sp.tilt_angle = 0;
+								_v44_tilt_flag_sp.tilt_angle = -_att_sp.pitch_body; //以弧度为单位
+								_att_sp.pitch_body = 0;
 							}
 							else
-							{
-								if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P1)
-									_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P1;
-								if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2)
-									_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P2;
-								if(_vtol_schedule.flight_mode == FW_MODE)
-									_v44_tilt_flag_sp.tilt_mode = FW_MODE;
-								if(_vtol_schedule.flight_mode == TRANSITION_BACK_P1)
-									_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK_P1;
-								if(_vtol_schedule.flight_mode == TRANSITION_BACK_P2)
-									_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK_P2;
-							}
-							_v44_tilt_flag_sp.max_tilt_angle = _params.man_pitch_max; //该变量和积分器的限幅相关
-							_v44_tilt_flag_sp.lon_velocity = longitudinalV;
-							_v44_tilt_flag_sp.pitch_sp = _att_sp.pitch_body;
-							_v44_tilt_flag_sp.timestamp = hrt_absolute_time();
-							// 姿态角期望转为四元数
-							q_sp = matrix::Eulerf(_att_sp.roll_body, _att_sp.pitch_body, _att_sp.yaw_body);
-							memcpy(&_att_sp.q_d[0], q_sp.data(), sizeof(_att_sp.q_d));
-							_att_sp.q_d_valid = true;
+								_v44_tilt_flag_sp.tilt_angle = 0;
 						}
+						else
+						{
+							if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P1)
+								_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P1;
+							if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2)
+								_v44_tilt_flag_sp.tilt_mode = TRANSITION_FRONT_P2;
+							if(_vtol_schedule.flight_mode == FW_MODE)
+								_v44_tilt_flag_sp.tilt_mode = FW_MODE;
+							if(_vtol_schedule.flight_mode == TRANSITION_BACK_P1)
+								_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK_P1;
+							if(_vtol_schedule.flight_mode == TRANSITION_BACK_P2)
+								_v44_tilt_flag_sp.tilt_mode = TRANSITION_BACK_P2;
+						}
+						_v44_tilt_flag_sp.max_tilt_angle = _params.man_pitch_max; //该变量和积分器的限幅相关
+						_v44_tilt_flag_sp.lon_velocity = longitudinalV;
+						_v44_tilt_flag_sp.pitch_sp = _att_sp.pitch_body;
+						_v44_tilt_flag_sp.timestamp = hrt_absolute_time();
+						// 姿态角期望转为四元数
+						q_sp = matrix::Eulerf(_att_sp.roll_body, _att_sp.pitch_body, _att_sp.yaw_body);
+						memcpy(&_att_sp.q_d[0], q_sp.data(), sizeof(_att_sp.q_d));
+						_att_sp.q_d_valid = true;
 					} else if (!_control_mode.flag_control_manual_enabled) {
 						/* autonomous altitude control without position control (failsafe landing),
 						 * force level attitude, don't change yaw */
