@@ -2055,6 +2055,7 @@ MulticopterPositionControl::task_main()
 
 					/* calculate attitude setpoint from thrust vector */
 					// 根据拉力期望计算所需要的姿态角度期望 ！！！
+					// “几何控制”
 					if (_control_mode.flag_control_velocity_enabled || _control_mode.flag_control_acceleration_enabled) {
 						// 速度控制 or 加速度哦控制，需要外环生成姿态期望
 						
@@ -2063,14 +2064,17 @@ MulticopterPositionControl::task_main()
 						math::Vector<3> body_y;
 						math::Vector<3> body_z;
 						
-						if (thrust_abs > SIGMA) { //总的旋翼拉力
-							body_z = -thrust_sp / thrust_abs; //---
+						// z轴拉力方向
+						if (thrust_abs > SIGMA) {
+							body_z = -thrust_sp / thrust_abs;
 						} else {
 							/* no thrust, set Z axis to safe value */
 							body_z.zero();
 							body_z(2) = 1.0f;
 						}
+
 						/* vector of desired yaw direction in XY plane, rotated by PI/2 */
+						// 进一步引入航向期望
 						math::Vector<3> y_C(-sinf(_att_sp.yaw_body), cosf(_att_sp.yaw_body), 0.0f);
 						if (fabsf(body_z(2)) > SIGMA) {
 							/* desired body_x axis, orthogonal to body_z */
@@ -2090,6 +2094,7 @@ MulticopterPositionControl::task_main()
 						body_y = body_z % body_x; //---
 
 						/* fill rotation matrix */
+						// 生成旋转矩阵，由旋转矩阵生成四元数
 						for (int i = 0; i < 3; i++) {
 							R(i, 0) = body_x(i);
 							R(i, 1) = body_y(i);
@@ -2100,7 +2105,7 @@ MulticopterPositionControl::task_main()
 						memcpy(&_att_sp.q_d[0], q_sp.data(), sizeof(_att_sp.q_d));
 						_att_sp.q_d_valid = true;
 						/* calculate euler angles, for logging only, must not be used for control */
-						// 不要用于控制？？？
+						// 不要用于控制
 						matrix::Eulerf euler = R;
 						_att_sp.roll_body = euler(0);
 						_att_sp.pitch_body = euler(1);
