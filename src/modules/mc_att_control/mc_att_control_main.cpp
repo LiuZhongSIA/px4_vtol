@@ -920,6 +920,8 @@ MulticopterAttitudeControl::control_attitude(float dt)
 
 		/* rotation matrix for roll/pitch only rotation */
 		// 这个旋转矩阵认为roll和pitch已经旋转完成了
+		// 通过旋转矢量计算完成roll和pitch旋转的旋转矩阵，再投影到机体轴系下
+		// see “Quaternion kinematics for the error-state KF”
 		R_rp = R * (_I + e_R_cp * e_R_z_sin + e_R_cp * e_R_cp * (1.0f - e_R_z_cos));
 
 	} else {
