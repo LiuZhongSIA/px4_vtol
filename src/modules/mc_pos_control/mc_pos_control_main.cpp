@@ -2078,6 +2078,7 @@ MulticopterPositionControl::task_main()
 						math::Vector<3> y_C(-sinf(_att_sp.yaw_body), cosf(_att_sp.yaw_body), 0.0f);
 						if (fabsf(body_z(2)) > SIGMA) {
 							/* desired body_x axis, orthogonal to body_z */
+							// 注意，这里的“%”是向量的叉乘！！！
 							body_x = y_C % body_z; //---
 							/* keep nose to front while inverted upside down */
 							if (body_z(2) < 0.0f) {
