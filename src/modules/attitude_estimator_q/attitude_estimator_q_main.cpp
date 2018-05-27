@@ -125,7 +125,7 @@ private:
 	int		_mocap_sub = -1;
 	int		_airspeed_sub = -1;
 	int		_global_pos_sub = -1;
-	orb_advert_t	_att_pub = nullptr;
+	orb_advert_t	_att_pub = nullptr; //关键是要发布姿态信息
 	orb_advert_t	_ctrl_state_pub = nullptr;
 	orb_advert_t	_est_state_pub = nullptr;
 
@@ -205,31 +205,34 @@ private:
 };
 
 
+// 构造函数，变量初始化
 AttitudeEstimatorQ::AttitudeEstimatorQ() :
 	_vel_prev(0, 0, 0),
 	_pos_acc(0, 0, 0),
-	_lp_accel_x(250.0f, 30.0f),
+	_lp_accel_x(250.0f, 30.0f), //低通滤波器，采样频率和截止频率
 	_lp_accel_y(250.0f, 30.0f),
 	_lp_accel_z(250.0f, 30.0f),
 	_lp_gyro_x(250.0f, 30.0f),
 	_lp_gyro_y(250.0f, 30.0f),
 	_lp_gyro_z(250.0f, 30.0f)
 {
-	_params_handles.w_acc		= param_find("ATT_W_ACC");
-	_params_handles.w_mag		= param_find("ATT_W_MAG");
-	_params_handles.w_ext_hdg	= param_find("ATT_W_EXT_HDG");
-	_params_handles.w_gyro_bias	= param_find("ATT_W_GYRO_BIAS");
-	_params_handles.mag_decl	= param_find("ATT_MAG_DECL");
-	_params_handles.mag_decl_auto	= param_find("ATT_MAG_DECL_A");
-	_params_handles.acc_comp	= param_find("ATT_ACC_COMP");
-	_params_handles.bias_max	= param_find("ATT_BIAS_MAX");
-	_params_handles.ext_hdg_mode	= param_find("ATT_EXT_HDG_M");
-	_params_handles.airspeed_mode = param_find("FW_ARSP_MODE");
+	_params_handles.w_acc		= param_find("ATT_W_ACC");          //加速度计权重
+	_params_handles.w_mag		= param_find("ATT_W_MAG");          //磁罗盘权重
+	_params_handles.w_ext_hdg	= param_find("ATT_W_EXT_HDG");      //外界航向权重
+	_params_handles.w_gyro_bias	= param_find("ATT_W_GYRO_BIAS");    //陀螺仪偏差权重
+	_params_handles.mag_decl	= param_find("ATT_MAG_DECL");       //磁偏角补偿
+	_params_handles.mag_decl_auto	= param_find("ATT_MAG_DECL_A"); //是否自动GPS定位补偿（磁偏角）
+	_params_handles.acc_comp	= param_find("ATT_ACC_COMP");       //是否基于GPS进行加速度补偿
+	_params_handles.bias_max	= param_find("ATT_BIAS_MAX");       //陀螺仪偏差限制
+	_params_handles.ext_hdg_mode	= param_find("ATT_EXT_HDG_M");  //外界航向模式
+	_params_handles.airspeed_mode = param_find("FW_ARSP_MODE");     //在fw_att_control_params.c，使用空速的类型
 }
 
 /**
  * Destructor, also kills task.
  */
+// 析构函数
+// 运行该函数说明线程已经被kell了
 AttitudeEstimatorQ::~AttitudeEstimatorQ()
 {
 	if (_control_task != -1) {
@@ -248,7 +251,8 @@ AttitudeEstimatorQ::~AttitudeEstimatorQ()
 				px4_task_delete(_control_task);
 				break;
 			}
-		} while (_control_task != -1);
+		} while (_control_task != -1); //直到_control_task == -1，跳出循环
+		                               //循环中设置延时，是为了保证一些功能性代码的运行
 	}
 
 	attitude_estimator_q::instance = nullptr;
@@ -287,7 +291,7 @@ void AttitudeEstimatorQ::task_main()
 {
 
 #ifdef __PX4_POSIX
-	perf_counter_t _perf_accel(perf_alloc_once(PC_ELAPSED, "sim_accel_delay"));
+	perf_counter_t _perf_accel(perf_alloc_once(PC_ELAPSED, "sim_accel_delay")); //计数器
 	perf_counter_t _perf_mpu(perf_alloc_once(PC_ELAPSED, "sim_mpu_delay"));
 	perf_counter_t _perf_mag(perf_alloc_once(PC_ELAPSED, "sim_mag_delay"));
 #endif
@@ -311,7 +315,7 @@ void AttitudeEstimatorQ::task_main()
 	fds[0].events = POLLIN;
 
 	while (!_task_should_exit) {
-		int ret = px4_poll(fds, 1, 1000);
+		int ret = px4_poll(fds, 1, 1000); //运行周期，最快1ms
 
 		if (ret < 0) {
 			// Poll error, sleep and try again
@@ -328,20 +332,20 @@ void AttitudeEstimatorQ::task_main()
 		update_parameters(false);
 
 		// Update sensors
+		// 更新来自IMU的信息，陀螺仪、加速度计、磁罗盘
 		sensor_combined_s sensors;
-
 		if (!orb_copy(ORB_ID(sensor_combined), _sensors_sub, &sensors)) {
 			// Feed validator with recent sensor data
 
 			if (sensors.timestamp > 0) {
-				// Filter gyro signal since it is not fildered in the drivers.
+				// Filter gyro signal since it is not filtered in the drivers.
 				_gyro(0) = _lp_gyro_x.apply(sensors.gyro_rad[0]);
 				_gyro(1) = _lp_gyro_y.apply(sensors.gyro_rad[1]);
 				_gyro(2) = _lp_gyro_z.apply(sensors.gyro_rad[2]);
 			}
 
 			if (sensors.accelerometer_timestamp_relative != sensor_combined_s::RELATIVE_TIMESTAMP_INVALID) {
-				// Filter accel signal since it is not fildered in the drivers.
+				// Filter accel signal since it is not filtered in the drivers.
 				_accel(0) = _lp_accel_x.apply(sensors.accelerometer_m_s2[0]);
 				_accel(1) = _lp_accel_y.apply(sensors.accelerometer_m_s2[1]);
 				_accel(2) = _lp_accel_z.apply(sensors.accelerometer_m_s2[2]);
@@ -353,6 +357,7 @@ void AttitudeEstimatorQ::task_main()
 			}
 
 			if (sensors.magnetometer_timestamp_relative != sensor_combined_s::RELATIVE_TIMESTAMP_INVALID) {
+				// 磁罗盘信息不过低通滤波器
 				_mag(0) = sensors.magnetometer_ga[0];
 				_mag(1) = sensors.magnetometer_ga[1];
 				_mag(2) = sensors.magnetometer_ga[2];
@@ -363,70 +368,67 @@ void AttitudeEstimatorQ::task_main()
 				}
 			}
 
-			_data_good = true;
+			_data_good = true; //IMU信息“好”的标志
 		}
 
 		// Update vision and motion capture heading
+		// 视觉和动捕信息主要时获得航向
 		bool vision_updated = false;
 		orb_check(_vision_sub, &vision_updated);
-
 		bool mocap_updated = false;
 		orb_check(_mocap_sub, &mocap_updated);
 
 		if (vision_updated) {
 			orb_copy(ORB_ID(vision_position_estimate), _vision_sub, &_vision);
 			math::Quaternion q(_vision.q);
-
 			math::Matrix<3, 3> Rvis = q.to_dcm();
 			math::Vector<3> v(1.0f, 0.0f, 0.4f);
 
 			// Rvis is Rwr (robot respect to world) while v is respect to world.
 			// Hence Rvis must be transposed having (Rwr)' * Vw
 			// Rrw * Vw = vn. This way we have consistency
-			_vision_hdg = Rvis.transposed() * v;
+			_vision_hdg = Rvis.transposed() * v; //惯性下x方向在机体轴系下的映射，0.4f？？？
 		}
-
 		if (mocap_updated) {
 			orb_copy(ORB_ID(att_pos_mocap), _mocap_sub, &_mocap);
 			math::Quaternion q(_mocap.q);
 			math::Matrix<3, 3> Rmoc = q.to_dcm();
-
 			math::Vector<3> v(1.0f, 0.0f, 0.4f);
 
 			// Rmoc is Rwr (robot respect to world) while v is respect to world.
 			// Hence Rmoc must be transposed having (Rwr)' * Vw
 			// Rrw * Vw = vn. This way we have consistency
-			_mocap_hdg = Rmoc.transposed() * v;
+			_mocap_hdg = Rmoc.transposed() * v; //惯性下x方向在机体轴系下的映射，0.4f？？？
 		}
 
 		// Update airspeed
 		bool airspeed_updated = false;
 		orb_check(_airspeed_sub, &airspeed_updated);
-
 		if (airspeed_updated) {
 			orb_copy(ORB_ID(airspeed), _airspeed_sub, &_airspeed);
 		}
 
 		// Check for timeouts on data
+		// 根据外界航向模式，判断来自不同源的航向信息是不是“好”的
 		if (_ext_hdg_mode == 1) {
 			_ext_hdg_good = _vision.timestamp > 0 && (hrt_elapsed_time(&_vision.timestamp) < 500000);
-
 		} else if (_ext_hdg_mode == 2) {
 			_ext_hdg_good = _mocap.timestamp > 0 && (hrt_elapsed_time(&_mocap.timestamp) < 500000);
 		}
 
+		// 更新GPS信息
 		bool gpos_updated;
 		orb_check(_global_pos_sub, &gpos_updated);
-
 		if (gpos_updated) {
 			orb_copy(ORB_ID(vehicle_global_position), _global_pos_sub, &_gpos);
-
+			// 如果需要根据GPS位置信息修正磁偏角
 			if (_mag_decl_auto && _gpos.eph < 20.0f && hrt_elapsed_time(&_gpos.timestamp) < 1000000) {
 				/* set magnetic declination automatically */
 				update_mag_declination(math::radians(get_mag_declination(_gpos.lat, _gpos.lon)));
 			}
 		}
 
+		// 使用较新的GPS信息，获得GPS测得的加速度信息_pos_acc
 		if (_acc_comp && _gpos.timestamp != 0 && hrt_absolute_time() < _gpos.timestamp + 20000 && _gpos.eph < 5.0f && _inited) {
 			/* position data is actual */
 			if (gpos_updated) {
@@ -436,13 +438,12 @@ void AttitudeEstimatorQ::task_main()
 				if (_vel_prev_t != 0 && _gpos.timestamp != _vel_prev_t) {
 					float vel_dt = (_gpos.timestamp - _vel_prev_t) / 1000000.0f;
 					/* calculate acceleration in body frame */
+					// 直接差分计算惯性下的速度，再转换到机体轴系下
 					_pos_acc = _q.conjugate_inversed((vel - _vel_prev) / vel_dt);
 				}
-
 				_vel_prev_t = _gpos.timestamp;
 				_vel_prev = vel;
 			}
-
 		} else {
 			/* position data is outdated, reset acceleration */
 			_pos_acc.zero();
@@ -451,14 +452,16 @@ void AttitudeEstimatorQ::task_main()
 		}
 
 		/* time from previous iteration */
+		// 计算与上一运行周期的时间间隔，最大为0.02s
 		hrt_abstime now = hrt_absolute_time();
 		float dt = (last_time > 0) ? ((now  - last_time) / 1000000.0f) : 0.00001f;
 		last_time = now;
-
 		if (dt > _dt_max) {
 			dt = _dt_max;
 		}
-
+		/************************************/
+		// ！！！更新四元数
+		/************************************/
 		if (!update(dt)) {
 			continue;
 		}
@@ -468,13 +471,14 @@ void AttitudeEstimatorQ::task_main()
 		struct vehicle_attitude_s att = {};
 		att.timestamp = sensors.timestamp;
 
-		att.rollspeed = _rates(0);
+		att.rollspeed = _rates(0); //姿态角度度信息直接时陀螺仪的测量值经过滤波后，加上一个偏差值
 		att.pitchspeed = _rates(1);
 		att.yawspeed = _rates(2);
 
 		memcpy(&att.q[0], _q.data, sizeof(att.q));
 
 		/* the instance count is not used here */
+		// 发布姿态角速度和姿态四元数
 		int att_inst;
 		orb_publish_auto(ORB_ID(vehicle_attitude), &_att_pub, &att, &att_inst, ORB_PRIO_HIGH);
 
@@ -495,13 +499,11 @@ void AttitudeEstimatorQ::task_main()
 
 			/* attitude rates for control state */
 			ctrl_state.roll_rate = _rates(0);
-
 			ctrl_state.pitch_rate = _rates(1);
-
 			ctrl_state.yaw_rate = _rates(2);
 
 			ctrl_state.airspeed_valid = false;
-
+			// 如果空速直接使用的测量值
 			if (_airspeed_mode == control_state_s::AIRSPD_MODE_MEAS) {
 				// use measured airspeed
 				if (PX4_ISFINITE(_airspeed.indicated_airspeed_m_s) && hrt_absolute_time() - _airspeed.timestamp < 1e6
@@ -510,14 +512,14 @@ void AttitudeEstimatorQ::task_main()
 					ctrl_state.airspeed_valid = true;
 				}
 			}
-
+			// 如果空速直接使用的是相对于地面的速度（GPS测量）
 			else if (_airspeed_mode == control_state_s::AIRSPD_MODE_EST) {
 				// use estimated body velocity as airspeed estimate
 				if (hrt_absolute_time() - _gpos.timestamp < 1e6) {
 					ctrl_state.airspeed = sqrtf(_gpos.vel_n * _gpos.vel_n + _gpos.vel_e * _gpos.vel_e + _gpos.vel_d * _gpos.vel_d);
 					ctrl_state.airspeed_valid = true;
 				}
-
+			// 如果没有使用空速
 			} else if (_airspeed_mode == control_state_s::AIRSPD_MODE_DISABLED) {
 				// do nothing, airspeed has been declared as non-valid above, controllers
 				// will handle this assuming always trim airspeed
@@ -548,18 +550,18 @@ void AttitudeEstimatorQ::task_main()
 	perf_end(_perf_mpu);
 	perf_end(_perf_mag);
 #endif
-
 	orb_unsubscribe(_sensors_sub);
 	orb_unsubscribe(_vision_sub);
 	orb_unsubscribe(_mocap_sub);
 	orb_unsubscribe(_airspeed_sub);
 	orb_unsubscribe(_params_sub);
 	orb_unsubscribe(_global_pos_sub);
+
 }
 
 void AttitudeEstimatorQ::update_parameters(bool force)
 {
-	bool updated = force;
+	bool updated = force; //强制更新地面站参数
 
 	if (!updated) {
 		orb_check(_params_sub, &updated);
@@ -577,32 +579,34 @@ void AttitudeEstimatorQ::update_parameters(bool force)
 		param_get(_params_handles.mag_decl, &mag_decl_deg);
 		update_mag_declination(math::radians(mag_decl_deg));
 		int32_t mag_decl_auto_int;
-		param_get(_params_handles.mag_decl_auto, &mag_decl_auto_int);
+		param_get(_params_handles.mag_decl_auto, &mag_decl_auto_int); //是否自动GPS定位补偿（磁偏角）
 		_mag_decl_auto = mag_decl_auto_int != 0;
 		int32_t acc_comp_int;
-		param_get(_params_handles.acc_comp, &acc_comp_int);
+		param_get(_params_handles.acc_comp, &acc_comp_int); //是否基于GPS进行加速度补偿
 		_acc_comp = acc_comp_int != 0;
-		param_get(_params_handles.bias_max, &_bias_max);
+		param_get(_params_handles.bias_max, &_bias_max); //陀螺仪偏差限制
 		param_get(_params_handles.ext_hdg_mode, &_ext_hdg_mode);
 		param_get(_params_handles.airspeed_mode, &_airspeed_mode);
 	}
 }
 
+// 初始化姿态
 bool AttitudeEstimatorQ::init()
 {
 	// Rotation matrix can be easily constructed from acceleration and mag field vectors
 	// 'k' is Earth Z axis (Down) unit vector in body frame
-	Vector<3> k = -_accel;
-	k.normalize();
+	Vector<3> k = -_accel; //因为加速度计会对重力做补偿，测得是重力外的加速度
+	k.normalize(); //NED下的Z轴在机体轴系下的映射，因为飞机没有飞，加速度只有重力产生，测得的时重力加速度的负
 
 	// 'i' is Earth X axis (North) unit vector in body frame, orthogonal with 'k'
-	Vector<3> i = (_mag - k * (_mag * k));
-	i.normalize();
+	Vector<3> i = (_mag - k * (_mag * k)); //为了使i和k正交
+	i.normalize(); //NED下的x轴在机体轴系下的映射
 
 	// 'j' is Earth Y axis (East) unit vector in body frame, orthogonal with 'k' and 'i'
 	Vector<3> j = k % i;
 
 	// Fill rotation matrix
+	// 从机体轴系到惯性系的旋转矩阵
 	Matrix<3, 3> R;
 	R.set_row(0, i);
 	R.set_row(1, j);
@@ -620,7 +624,7 @@ bool AttitudeEstimatorQ::init()
 
 	if (PX4_ISFINITE(_q(0)) && PX4_ISFINITE(_q(1)) &&
 	    PX4_ISFINITE(_q(2)) && PX4_ISFINITE(_q(3)) &&
-	    _q.length() > 0.95f && _q.length() < 1.05f) {
+	    _q.length() > 0.95f && _q.length() < 1.05f) { //表示姿态的四元数的长度总是1
 		_inited = true;
 
 	} else {
@@ -630,33 +634,37 @@ bool AttitudeEstimatorQ::init()
 	return _inited;
 }
 
+/*************************************************/
+// 互补滤波功能实现
+/*************************************************/
 bool AttitudeEstimatorQ::update(float dt)
 {
 	if (!_inited) {
-
-		if (!_data_good) {
+		if (!_data_good) { //IMU数据是否“好”
 			return false;
 		}
 
-		return init();
+		return init(); //如果没有初始化先进行初始化，关键是给_q赋初值
 	}
 
 	Quaternion q_last = _q;
 
 	// Angular rate of correction
+	// pqr的修正量
 	Vector<3> corr;
 	float spinRate = _gyro.length();
 
+	// 使用外界航向信息
 	if (_ext_hdg_mode > 0 && _ext_hdg_good) {
 		if (_ext_hdg_mode == 1) {
 			// Vision heading correction
 			// Project heading to global frame and extract XY component
-			Vector<3> vision_hdg_earth = _q.conjugate(_vision_hdg);
+			Vector<3> vision_hdg_earth = _q.conjugate(_vision_hdg); //结合NED的x轴在机体轴系下的映射
 			float vision_hdg_err = _wrap_pi(atan2f(vision_hdg_earth(1), vision_hdg_earth(0)));
 			// Project correction to body frame
+			// 偏差映射到机体轴系下
 			corr += _q.conjugate_inversed(Vector<3>(0.0f, 0.0f, -vision_hdg_err)) * _w_ext_hdg;
 		}
-
 		if (_ext_hdg_mode == 2) {
 			// Mocap heading correction
 			// Project heading to global frame and extract XY component
@@ -666,15 +674,15 @@ bool AttitudeEstimatorQ::update(float dt)
 			corr += _q.conjugate_inversed(Vector<3>(0.0f, 0.0f, -mocap_hdg_err)) * _w_ext_hdg;
 		}
 	}
-
+	// 不使用外界航向信息
 	if (_ext_hdg_mode == 0  || !_ext_hdg_good) {
 		// Magnetometer correction
 		// Project mag field vector to global frame and extract XY component
-		Vector<3> mag_earth = _q.conjugate(_mag);
-		float mag_err = _wrap_pi(atan2f(mag_earth(1), mag_earth(0)) - _mag_decl);
+		Vector<3> mag_earth = _q.conjugate(_mag); //所以磁罗盘测得的同样是NED的x轴在机体轴系下的映射
+		float mag_err = _wrap_pi(atan2f(mag_earth(1), mag_earth(0)) - _mag_decl); //消除磁偏角的作用
+		
 		float gainMult = 1.0f;
 		const float fifty_dps = 0.873f;
-
 		if (spinRate > fifty_dps) {
 			gainMult = fmin(spinRate / fifty_dps, 10.0f);
 		}
@@ -682,40 +690,33 @@ bool AttitudeEstimatorQ::update(float dt)
 		// Project magnetometer correction to body frame
 		corr += _q.conjugate_inversed(Vector<3>(0.0f, 0.0f, -mag_err)) * _w_mag * gainMult;
 	}
-
+	
 	_q.normalize();
-
-
 	// Accelerometer correction
 	// Project 'k' unit vector of earth frame to body frame
 	// Vector<3> k = _q.conjugate_inversed(Vector<3>(0.0f, 0.0f, 1.0f));
 	// Optimized version with dropped zeros
+	// 小姿态下，四元数与重力产生加速度的关系的负
 	Vector<3> k(
 		2.0f * (_q(1) * _q(3) - _q(0) * _q(2)),
 		2.0f * (_q(2) * _q(3) + _q(0) * _q(1)),
 		(_q(0) * _q(0) - _q(1) * _q(1) - _q(2) * _q(2) + _q(3) * _q(3))
 	);
-
-	corr += (k % (_accel - _pos_acc).normalized()) * _w_accel;
+	corr += (k % (_accel - _pos_acc).normalized()) * _w_accel; //(_accel - _pos_acc)计算出的是重力的作用的负
 
 	// Gyro bias estimation
 	if (spinRate < 0.175f) {
 		_gyro_bias += corr * (_w_gyro_bias * dt);
-
 		for (int i = 0; i < 3; i++) {
 			_gyro_bias(i) = math::constrain(_gyro_bias(i), -_bias_max, _bias_max);
 		}
-
 	}
 
 	_rates = _gyro + _gyro_bias;
-
 	// Feed forward gyro
 	corr += _rates;
-
 	// Apply correction to state
 	_q += _q.derivative(corr) * dt;
-
 	// Normalize quaternion
 	_q.normalize();
 
@@ -731,21 +732,25 @@ bool AttitudeEstimatorQ::update(float dt)
 	return true;
 }
 
+// 更新磁偏角
 void AttitudeEstimatorQ::update_mag_declination(float new_declination)
 {
 	// Apply initial declination or trivial rotations without changing estimation
 	if (!_inited || fabsf(new_declination - _mag_decl) < 0.0001f) {
 		_mag_decl = new_declination;
-
+		// 并不对四元数进行旋转处理
 	} else {
 		// Immediately rotate current estimation to avoid gyro bias growth
 		Quaternion decl_rotation;
-		decl_rotation.from_yaw(new_declination - _mag_decl);
-		_q = decl_rotation * _q;
+		decl_rotation.from_yaw(new_declination - _mag_decl); //这里也是计算新磁偏角造成的差
+		_q = decl_rotation * _q; //对四元数旋转，消除磁偏角的影响
 		_mag_decl = new_declination;
 	}
 }
 
+/****************************************************/
+// 主函数
+/****************************************************/
 int attitude_estimator_q_main(int argc, char *argv[])
 {
 	if (argc < 2) {
@@ -783,7 +788,7 @@ int attitude_estimator_q_main(int argc, char *argv[])
 			return 1;
 		}
 
-		delete attitude_estimator_q::instance;
+		delete attitude_estimator_q::instance; //运行析构函数
 		attitude_estimator_q::instance = nullptr;
 		return 0;
 	}
