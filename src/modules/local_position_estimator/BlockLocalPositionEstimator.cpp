@@ -24,23 +24,23 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// this block has no parent, and has name LPE
 	SuperBlock(NULL, "LPE"),
 	// subscriptions, set rate, add to list
-	_sub_armed(ORB_ID(actuator_armed), 1000 / 2, 0, &getSubscriptions()),
+	_sub_armed(ORB_ID(actuator_armed), 1000 / 2, 0, &getSubscriptions()),        //orb_subscribe(ORB_ID(actuator_armed))
 	_sub_land(ORB_ID(vehicle_land_detected), 1000 / 2, 0, &getSubscriptions()),
 	_sub_att(ORB_ID(vehicle_attitude), 1000 / 100, 0, &getSubscriptions()),
+	// status updates 2 hz
+	_sub_param_update(ORB_ID(parameter_update), 1000 / 2, 0, &getSubscriptions()),
+	_sub_manual(ORB_ID(manual_control_setpoint), 1000 / 2, 0, &getSubscriptions()),
 	// set flow max update rate higher than expected to we don't lose packets
 	_sub_flow(ORB_ID(optical_flow), 1000 / 100, 0, &getSubscriptions()),
 	// main prediction loop, 100 hz
 	_sub_sensor(ORB_ID(sensor_combined), 1000 / 100, 0, &getSubscriptions()),
-	// status updates 2 hz
-	_sub_param_update(ORB_ID(parameter_update), 1000 / 2, 0, &getSubscriptions()),
-	_sub_manual(ORB_ID(manual_control_setpoint), 1000 / 2, 0, &getSubscriptions()),
 	// gps 10 hz
 	_sub_gps(ORB_ID(vehicle_gps_position), 1000 / 10, 0, &getSubscriptions()),
 	// vision 30 hz
 	_sub_vision_pos(ORB_ID(vision_position_estimate), 1000 / 30, 0, &getSubscriptions()),
 	// mocap 50 hz
 	_sub_mocap(ORB_ID(att_pos_mocap), 1000 / 50, 0, &getSubscriptions()),
-	// all distance sensors, 10 hz
+	// all distance sensors, 10 hz //所有距离传感器
 	_sub_dist0(ORB_ID(distance_sensor), 1000 / 10, 0, &getSubscriptions()),
 	_sub_dist1(ORB_ID(distance_sensor), 1000 / 10, 1, &getSubscriptions()),
 	_sub_dist2(ORB_ID(distance_sensor), 1000 / 10, 2, &getSubscriptions()),
@@ -59,48 +59,48 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_map_ref(),
 
 	// block parameters
-	_pub_agl_z(this, "PUB_AGL_Z"),
-	_vxy_pub_thresh(this, "VXY_PUB"),
+	_pub_agl_z(this, "PUB_AGL_Z"),        //发布地平面之上的Z
+	_vxy_pub_thresh(this, "VXY_PUB"),     //所要达到的发布标准差
 	_z_pub_thresh(this, "Z_PUB"),
-	_sonar_z_stddev(this, "SNR_Z"),
+	_sonar_z_stddev(this, "SNR_Z"),       //超声波标准差、补偿
 	_sonar_z_offset(this, "SNR_OFF_Z"),
-	_lidar_z_stddev(this, "LDR_Z"),
+	_lidar_z_stddev(this, "LDR_Z"),       //激光标准差、补偿
 	_lidar_z_offset(this, "LDR_OFF_Z"),
-	_accel_xy_stddev(this, "ACC_XY"),
+	_accel_xy_stddev(this, "ACC_XY"),     //加速度计噪声密度
 	_accel_z_stddev(this, "ACC_Z"),
-	_baro_stddev(this, "BAR_Z"),
-	_gps_on(this, "GPS_ON"),
-	_gps_delay(this, "GPS_DELAY"),
-	_gps_xy_stddev(this, "GPS_XY"),
+	_baro_stddev(this, "BAR_Z"),          //气压计标准差 
+	_gps_on(this, "GPS_ON"),              //GPS使能，高度初始化也使用GPS信息
+	_gps_delay(this, "GPS_DELAY"),        //GPS延时补偿
+	_gps_xy_stddev(this, "GPS_XY"),       //GPS标准差
 	_gps_z_stddev(this, "GPS_Z"),
 	_gps_vxy_stddev(this, "GPS_VXY"),
 	_gps_vz_stddev(this, "GPS_VZ"),
-	_gps_eph_max(this, "EPH_MAX"),
+	_gps_eph_max(this, "EPH_MAX"),        //GPS初始化所允许的最大EPH和EPV
 	_gps_epv_max(this, "EPV_MAX"),
-	_vision_xy_stddev(this, "VIS_XY"),
+	_vision_xy_stddev(this, "VIS_XY"),    //视觉标准差
 	_vision_z_stddev(this, "VIS_Z"),
-	_vision_delay(this, "VIS_DELAY"),
-	_vision_on(this, "VIS_ON"),
-	_mocap_p_stddev(this, "VIC_P"),
-	_flow_gyro_comp(this, "FLW_GYRO_CMP"),
-	_flow_z_offset(this, "FLW_OFF_Z"),
-	_flow_scale(this, "FLW_SCALE"),
+	_vision_delay(this, "VIS_DELAY"),     //视觉延时补偿
+	_vision_on(this, "VIS_ON"),           //是否开启视觉修正
+	_mocap_p_stddev(this, "VIC_P"),       //Vicon动捕位置标准差
+	_flow_gyro_comp(this, "FLW_GYRO_CMP"),//光流陀螺补偿
+	_flow_z_offset(this, "FLW_OFF_Z"),    //光流z补偿
+	_flow_scale(this, "FLW_SCALE"),       //光流比例
 	//_flow_board_x_offs(NULL, "SENS_FLW_XOFF"),
 	//_flow_board_y_offs(NULL, "SENS_FLW_YOFF"),
-	_flow_min_q(this, "FLW_QMIN"),
-	_land_z_stddev(this, "LAND_Z"),
-	_pn_p_noise_density(this, "PN_P"),
+	_flow_min_q(this, "FLW_QMIN"),        //光流最小质量标准
+	_land_z_stddev(this, "LAND_Z"),       //降落检测z标准差
+	_pn_p_noise_density(this, "PN_P"),    //状态噪声密度
 	_pn_v_noise_density(this, "PN_V"),
 	_pn_b_noise_density(this, "PN_B"),
-	_pn_t_noise_density(this, "PN_T"),
-	_t_max_grade(this, "T_MAX_GRADE"),
+	_pn_t_noise_density(this, "PN_T"),    //地形随机漫步噪声密度
+	_t_max_grade(this, "T_MAX_GRADE"),    //用于计算由于移动增加的地形随机漫步噪声密度
 
 	// init origin
-	_init_origin_lat(this, "LAT"),
+	_init_origin_lat(this, "LAT"),        //经纬度初始
 	_init_origin_lon(this, "LON"),
 
 	// flow gyro
-	_flow_gyro_x_high_pass(this, "FGYRO_HP"),
+	_flow_gyro_x_high_pass(this, "FGYRO_HP"), //高通滤波器截止频率
 	_flow_gyro_y_high_pass(this, "FGYRO_HP"),
 
 	// stats
@@ -201,7 +201,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// initialize A, B,  P, x, u
 	_x.setZero();
 	_u.setZero();
-	initSS();
+	initSS(); //更新_P、_A、_B、_Q、_R
 
 	// perf counters
 	_loop_perf = perf_alloc(PC_ELAPSED,
@@ -214,6 +214,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_map_ref.init_done = false;
 
 	// intialize parameter dependent matrices
+	// 为了能更新地面站传来的参数
 	updateParams();
 }
 
@@ -229,12 +230,13 @@ Vector<float, BlockLocalPositionEstimator::n_x> BlockLocalPositionEstimator::dyn
 	return _A * x + _B * u;
 }
 
+/*********************************************************************/
+// 主要功能实现部分
+/*********************************************************************/
 void BlockLocalPositionEstimator::update()
 {
-
 	// wait for a sensor update, check for exit condition every 100 ms
 	int ret = px4_poll(_polls, 3, 100);
-
 	if (ret < 0) {
 		/* poll error, count it in perf */
 		perf_count(_err_perf);
@@ -244,16 +246,17 @@ void BlockLocalPositionEstimator::update()
 	uint64_t newTimeStamp = hrt_absolute_time();
 	float dt = (newTimeStamp - _timeStamp) / 1.0e6f;
 	_timeStamp = newTimeStamp;
-
 	// set dt for all child blocks
 	setDt(dt);
 
 	// auto-detect connected rangefinders while not armed
+	// 没有arm时，会检测有没有安装一系列的距离传感器，主要是激光和超声波模块
+	// 并不是每架飞机都会安装这些传感器的
 	bool armedState = _sub_armed.get().armed;
-
 	if (!armedState && (_sub_lidar == NULL || _sub_sonar == NULL)) {
 		detectDistanceSensors();
 	}
+	_lastArmedState = armedState;
 
 	// reset pos, vel, and terrain on arming
 
@@ -281,27 +284,23 @@ void BlockLocalPositionEstimator::update()
 	// 	_aglLowPass.setState(0);
 	// }
 
-	_lastArmedState = armedState;
-
 	// see which updates are available
 	bool flowUpdated = _sub_flow.updated();
 	bool paramsUpdated = _sub_param_update.updated();
 	bool baroUpdated = _sub_sensor.updated();
-	bool gpsUpdated = _gps_on.get() && _sub_gps.updated();
-	bool visionUpdated = _vision_on.get() && _sub_vision_pos.updated();
+	bool gpsUpdated = _gps_on.get() && _sub_gps.updated(); //GPS要使能
+	bool visionUpdated = _vision_on.get() && _sub_vision_pos.updated(); //视觉修正要使能
 	bool mocapUpdated = _sub_mocap.updated();
 	bool lidarUpdated = (_sub_lidar != NULL) && _sub_lidar->updated();
 	bool sonarUpdated = (_sub_sonar != NULL) && _sub_sonar->updated();
-	bool landUpdated = (
-				   (_sub_land.get().landed ||
-				    ((!_sub_armed.get().armed) && (!_sub_land.get().freefall)))
-				   && (!(_lidarInitialized || _mocapInitialized || _visionInitialized || _sonarInitialized))
-				   && ((_timeStamp - _time_last_land) > 1.0e6f / LAND_RATE));
-
+	bool landUpdated = (   (_sub_land.get().landed || ((!_sub_armed.get().armed) && (!_sub_land.get().freefall)))
+				        && (!(_lidarInitialized || _mocapInitialized || _visionInitialized || _sonarInitialized))
+				        && ((_timeStamp - _time_last_land) > 1.0e6f / LAND_RATE));
 	// get new data
 	updateSubscriptions();
 
 	// update parameters
+	// 如果地面站的参数更新，描述噪声的协方差阵也得更新
 	if (paramsUpdated) {
 		updateParams();
 		updateSSParams();
@@ -309,17 +308,14 @@ void BlockLocalPositionEstimator::update()
 
 	// is xy valid?
 	bool vxy_stddev_ok = false;
-
 	if (math::max(_P(X_vx, X_vx), _P(X_vy, X_vy)) < _vxy_pub_thresh.get()*_vxy_pub_thresh.get()) {
-		vxy_stddev_ok = true;
+		vxy_stddev_ok = true; //xy速度标准差符合要求
 	}
-
-	if (_validXY) {
+	if (_validXY) { //XY方向位置估计是否可用
 		// if valid and gps has timed out, set to not valid
 		if (!vxy_stddev_ok && !_gpsInitialized) {
 			_validXY = false;
 		}
-
 	} else {
 		if (vxy_stddev_ok) {
 			if (_flowInitialized || _gpsInitialized || _visionInitialized || _mocapInitialized) {
@@ -330,13 +326,11 @@ void BlockLocalPositionEstimator::update()
 
 	// is z valid?
 	bool z_stddev_ok = sqrtf(_P(X_z, X_z)) < _z_pub_thresh.get();
-
-	if (_validZ) {
+	if (_validZ) { //Z方向位置估计是否可用
 		// if valid and baro has timed out, set to not valid
 		if (!z_stddev_ok && !_baroInitialized) {
 			_validZ = false;
 		}
-
 	} else {
 		if (z_stddev_ok) {
 			_validZ = true;
@@ -345,12 +339,10 @@ void BlockLocalPositionEstimator::update()
 
 	// is terrain valid?
 	bool tz_stddev_ok = sqrtf(_P(X_tz, X_tz)) < _z_pub_thresh.get();
-
-	if (_validTZ) {
+	if (_validTZ) { //地形估计是否可用
 		if (!tz_stddev_ok) {
 			_validTZ = false;
 		}
-
 	} else {
 		if (tz_stddev_ok) {
 			_validTZ = true;
@@ -359,17 +351,14 @@ void BlockLocalPositionEstimator::update()
 
 	// timeouts
 	if (_validXY) {
-		_time_last_xy = _timeStamp;
+		_time_last_xy = _timeStamp; //当前时间戳
 	}
-
 	if (_validZ) {
 		_time_last_z = _timeStamp;
 	}
-
 	if (_validTZ) {
 		_time_last_tz = _timeStamp;
 	}
-
 	// check timeouts
 	checkTimeouts();
 
@@ -381,8 +370,8 @@ void BlockLocalPositionEstimator::update()
 	}
 
 	// reinitialize x if necessary
+	// 重置状态向量_x
 	bool reinit_x = false;
-
 	for (int i = 0; i < n_x; i++) {
 		// should we do a reinit
 		// of sensors here?
@@ -393,18 +382,16 @@ void BlockLocalPositionEstimator::update()
 			break;
 		}
 	}
-
 	if (reinit_x) {
 		for (int i = 0; i < n_x; i++) {
 			_x(i) = 0;
 		}
-
 		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] reinit x");
 	}
 
 	// force P symmetry and reinitialize P if necessary
+	// 重置状态协方差阵，重新初始化
 	bool reinit_P = false;
-
 	for (int i = 0; i < n_x; i++) {
 		for (int j = 0; j <= i; j++) {
 			if (!PX4_ISFINITE(_P(i, j))) {
@@ -412,7 +399,6 @@ void BlockLocalPositionEstimator::update()
 							     "[lpe] reinit P (%d, %d) not finite", i, j);
 				reinit_P = true;
 			}
-
 			if (i == j) {
 				// make sure diagonal elements are positive
 				if (_P(i, i) <= 0) {
@@ -420,67 +406,57 @@ void BlockLocalPositionEstimator::update()
 								     "[lpe] reinit P (%d, %d) negative", i, j);
 					reinit_P = true;
 				}
-
 			} else {
 				// copy elememnt from upper triangle to force
 				// symmetry
 				_P(j, i) = _P(i, j);
 			}
-
 			if (reinit_P) { break; }
 		}
-
 		if (reinit_P) { break; }
 	}
-
 	if (reinit_P) {
 		initP();
 	}
 
 	// do prediction
+	// 进行Kalman滤波的预测更新
 	predict();
 
+	// 使用不同传感器的测量信息，进行
+	// ！！！Kalman滤波的测量更新，信息融合
 	// sensor corrections/ initializations
 	if (gpsUpdated) {
 		if (!_gpsInitialized) {
 			gpsInit();
-
 		} else {
 			gpsCorrect();
 		}
 	}
-
 	if (baroUpdated) {
 		if (!_baroInitialized) {
 			baroInit();
-
 		} else {
 			baroCorrect();
 		}
 	}
-
 	if (lidarUpdated) {
 		if (!_lidarInitialized) {
 			lidarInit();
-
 		} else {
 			lidarCorrect();
 		}
 	}
-
 	if (sonarUpdated) {
 		if (!_sonarInitialized) {
 			sonarInit();
-
 		} else {
 			sonarCorrect();
 		}
 	}
-
 	if (flowUpdated) {
 		if (!_flowInitialized) {
 			flowInit();
-
 		} else {
 			perf_begin(_loop_perf);// TODO
 			flowCorrect();
@@ -488,40 +464,33 @@ void BlockLocalPositionEstimator::update()
 			perf_end(_loop_perf);
 		}
 	}
-
 	if (visionUpdated) {
 		if (!_visionInitialized) {
 			visionInit();
-
 		} else {
 			visionCorrect();
 		}
 	}
-
 	if (mocapUpdated) {
 		if (!_mocapInitialized) {
 			mocapInit();
-
 		} else {
 			mocapCorrect();
 		}
 	}
-
 	if (landUpdated) {
 		if (!_landInitialized) {
 			landInit();
-
 		} else {
 			landCorrect();
 		}
 	}
 
-	if (_altOriginInitialized) {
+	if (_altOriginInitialized) { //如果高度进行了初始化
 		// update all publications if possible
 		publishLocalPos();
 		publishEstimatorStatus();
-		_pub_innov.update();
-
+		_pub_innov.update(); //这个变量在测量更新的各个子文件中赋值
 		if (_validXY) {
 			publishGlobalPos();
 		}
@@ -531,23 +500,22 @@ void BlockLocalPositionEstimator::update()
 	// if state is frozen, delayed state still
 	// needs to be propagated with frozen state
 	float dt_hist = 1.0e-6f * (_timeStamp - _time_last_hist);
-
 	if (_time_last_hist == 0 ||
-	    (dt_hist > HIST_STEP)) {
+	    (dt_hist > HIST_STEP)) { //每隔差不多0.05s，进行一次更新，填入新的数据
 		_tDelay.update(Scalar<uint64_t>(_timeStamp));
 		_xDelay.update(_x);
 		_time_last_hist = _timeStamp;
 	}
 }
 
+// 检查状态估计是否超时
 void BlockLocalPositionEstimator::checkTimeouts()
 {
-	if (_timeStamp - _time_last_xy > EST_SRC_TIMEOUT) {
+	if (_timeStamp - _time_last_xy > EST_SRC_TIMEOUT) { //大于10ms
 		if (!_xyTimeout) {
 			_xyTimeout = true;
 			mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] xy timeout ");
 		}
-
 	} else if (_xyTimeout) {
 		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] xy resume ");
 		_xyTimeout = false;
@@ -558,7 +526,6 @@ void BlockLocalPositionEstimator::checkTimeouts()
 			_zTimeout = true;
 			mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] z timeout ");
 		}
-
 	} else if (_zTimeout) {
 		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] z resume ");
 		_zTimeout = false;
@@ -569,12 +536,12 @@ void BlockLocalPositionEstimator::checkTimeouts()
 			_tzTimeout = true;
 			mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] tz timeout ");
 		}
-
 	} else if (_tzTimeout) {
 		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] tz resume ");
 		_tzTimeout = false;
 	}
 
+	// 检查其他传感器的测量是不是超时
 	lidarCheckTimeout();
 	sonarCheckTimeout();
 	baroCheckTimeout();
@@ -584,19 +551,19 @@ void BlockLocalPositionEstimator::checkTimeouts()
 	mocapCheckTimeout();
 }
 
+// 距地面高度
 float BlockLocalPositionEstimator::agl()
 {
 	return _x(X_tz) - _x(X_z);
 }
 
+// 调整 dx*T
 void BlockLocalPositionEstimator::correctionLogic(Vector<float, n_x> &dx)
 {
 	// don't correct bias when rotating rapidly
-	float ang_speed = sqrtf(
-				  _sub_att.get().rollspeed * _sub_att.get().rollspeed +
-				  _sub_att.get().pitchspeed * _sub_att.get().pitchspeed +
-				  _sub_att.get().yawspeed * _sub_att.get().yawspeed);
-
+	float ang_speed = sqrtf(_sub_att.get().rollspeed * _sub_att.get().rollspeed +
+				            _sub_att.get().pitchspeed * _sub_att.get().pitchspeed +
+				            _sub_att.get().yawspeed * _sub_att.get().yawspeed);
 	if (ang_speed > 1) {
 		dx(X_bx) = 0;
 		dx(X_by) = 0;
@@ -626,34 +593,31 @@ void BlockLocalPositionEstimator::correctionLogic(Vector<float, n_x> &dx)
 	}
 
 	// saturate bias
+	// 加速度偏差的值不要超过一定限制
 	float bx = dx(X_bx) + _x(X_bx);
 	float by = dx(X_by) + _x(X_by);
 	float bz = dx(X_bz) + _x(X_bz);
-
 	if (std::abs(bx) > BIAS_MAX) {
 		bx = BIAS_MAX * bx / std::abs(bx);
 		dx(X_bx) = bx - _x(X_bx);
 	}
-
 	if (std::abs(by) > BIAS_MAX) {
 		by = BIAS_MAX * by / std::abs(by);
 		dx(X_by) = by - _x(X_by);
 	}
-
 	if (std::abs(bz) > BIAS_MAX) {
 		bz = BIAS_MAX * bz / std::abs(bz);
 		dx(X_bz) = bz - _x(X_bz);
 	}
 }
 
-
+// 调整 dP*T
 void BlockLocalPositionEstimator::covPropagationLogic(Matrix<float, n_x, n_x> &dP)
 {
 	for (int i = 0; i < n_x; i++) {
 		if (_P(i, i) > P_MAX) {
 			// if diagonal element greater than max, stop propagating
 			dP(i, i) = 0;
-
 			for (int j = 0; j < n_x; j++) {
 				dP(i, j) = 0;
 				dP(j, i) = 0;
@@ -662,6 +626,7 @@ void BlockLocalPositionEstimator::covPropagationLogic(Matrix<float, n_x, n_x> &d
 	}
 }
 
+// 检查距离传感器
 void BlockLocalPositionEstimator::detectDistanceSensors()
 {
 	for (int i = 0; i < N_DIST_SUBS; i++) {
@@ -677,23 +642,23 @@ void BlockLocalPositionEstimator::detectDistanceSensors()
 			if (s->get().type == \
 			    distance_sensor_s::MAV_DISTANCE_SENSOR_LASER &&
 			    _sub_lidar == NULL) {
-				_sub_lidar = s;
+				_sub_lidar = s; //更新激光测距仪的句柄
 				mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] Lidar detected with ID %i", i);
 
 			} else if (s->get().type == \
 				   distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND &&
 				   _sub_sonar == NULL) {
-				_sub_sonar = s;
+				_sub_sonar = s; //更新超声波测距仪的句柄
 				mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] Sonar detected with ID %i", i);
 			}
 		}
 	}
 }
 
-
+// NED坐标系下的位置信息
 void BlockLocalPositionEstimator::publishLocalPos()
 {
-	const Vector<float, n_x> &xLP = _xLowPass.getState();
+	const Vector<float, n_x> &xLP = _xLowPass.getState(); //使用的是预测更新的结果
 
 	// lie about eph/epv to allow visual odometry only navigation when velocity est. good
 	float vxy_stddev = sqrtf(_P(X_vx, X_vx) + _P(X_vy, X_vy));
@@ -701,12 +666,10 @@ void BlockLocalPositionEstimator::publishLocalPos()
 	float eph = sqrtf(_P(X_x, X_x) + _P(X_y, X_y));
 	float eph_thresh = 3.0f;
 	float epv_thresh = 3.0f;
-
 	if (vxy_stddev < _vxy_pub_thresh.get()) {
 		if (eph > eph_thresh) {
 			eph = eph_thresh;
 		}
-
 		if (epv > epv_thresh) {
 			epv = epv_thresh;
 		}
@@ -723,14 +686,11 @@ void BlockLocalPositionEstimator::publishLocalPos()
 		_pub_lpos.get().v_z_valid = _validZ;
 		_pub_lpos.get().x = xLP(X_x); 	// north
 		_pub_lpos.get().y = xLP(X_y);  	// east
-
-		if (_pub_agl_z.get()) {
+		if (_pub_agl_z.get()) { //如果要以距离地面高度作为高度值
 			_pub_lpos.get().z = -_aglLowPass.getState(); // agl
-
 		} else {
 			_pub_lpos.get().z = xLP(X_z); 	// down
 		}
-
 		_pub_lpos.get().vx = xLP(X_vx); // north
 		_pub_lpos.get().vy = xLP(X_vy); // east
 		_pub_lpos.get().vz = xLP(X_vz); // down
@@ -742,7 +702,7 @@ void BlockLocalPositionEstimator::publishLocalPos()
 		_pub_lpos.get().ref_lat = _map_ref.lat_rad * 180 / M_PI;
 		_pub_lpos.get().ref_lon = _map_ref.lon_rad * 180 / M_PI;
 		_pub_lpos.get().ref_alt = _altOrigin;
-		_pub_lpos.get().dist_bottom = _aglLowPass.getState();
+		_pub_lpos.get().dist_bottom = _aglLowPass.getState(); //距离地面高度
 		_pub_lpos.get().dist_bottom_rate = - xLP(X_vz);
 		_pub_lpos.get().surface_bottom_timestamp = _timeStamp;
 		// we estimate agl even when we don't have terrain info
@@ -752,10 +712,11 @@ void BlockLocalPositionEstimator::publishLocalPos()
 		_pub_lpos.get().dist_bottom_valid = _validZ;
 		_pub_lpos.get().eph = eph;
 		_pub_lpos.get().epv = epv;
-		_pub_lpos.update();
+		_pub_lpos.update(); //消息发布
 	}
 }
 
+// 估计器状态
 void BlockLocalPositionEstimator::publishEstimatorStatus()
 {
 	_pub_est_status.get().timestamp = _timeStamp;
@@ -786,17 +747,18 @@ void BlockLocalPositionEstimator::publishEstimatorStatus()
 	_pub_est_status.get().pos_horiz_accuracy = _pub_gpos.get().eph;
 	_pub_est_status.get().pos_vert_accuracy = _pub_gpos.get().epv;
 
-	_pub_est_status.update();
+	_pub_est_status.update(); //消息发布
 }
 
+// 以经纬高表征的位置信息
 void BlockLocalPositionEstimator::publishGlobalPos()
 {
 	// publish global position
 	double lat = 0;
 	double lon = 0;
 	const Vector<float, n_x> &xLP = _xLowPass.getState();
-	map_projection_reproject(&_map_ref, xLP(X_x), xLP(X_y), &lat, &lon);
-	float alt = -xLP(X_z) + _altOrigin;
+	map_projection_reproject(&_map_ref, xLP(X_x), xLP(X_y), &lat, &lon); //经纬，利用local位置生成
+	float alt = -xLP(X_z) + _altOrigin; //高
 
 	// lie about eph/epv to allow visual odometry only navigation when velocity est. good
 	float vxy_stddev = sqrtf(_P(X_vx, X_vx) + _P(X_vy, X_vy));
@@ -804,12 +766,10 @@ void BlockLocalPositionEstimator::publishGlobalPos()
 	float eph = sqrtf(_P(X_x, X_x) + _P(X_y, X_y));
 	float eph_thresh = 3.0f;
 	float epv_thresh = 3.0f;
-
 	if (vxy_stddev < _vxy_pub_thresh.get()) {
 		if (eph > eph_thresh) {
 			eph = eph_thresh;
 		}
-
 		if (epv > epv_thresh) {
 			epv = epv_thresh;
 		}
@@ -833,10 +793,11 @@ void BlockLocalPositionEstimator::publishGlobalPos()
 		_pub_gpos.get().terrain_alt_valid = _validTZ;
 		_pub_gpos.get().dead_reckoning = !_validXY && !_xyTimeout;
 		_pub_gpos.get().pressure_alt = _sub_sensor.get().baro_alt_meter;
-		_pub_gpos.update();
+		_pub_gpos.update(); //消息发布
 	}
 }
 
+// 初始的协方差阵_P
 void BlockLocalPositionEstimator::initP()
 {
 	_P.setZero();
@@ -852,14 +813,16 @@ void BlockLocalPositionEstimator::initP()
 	_P(X_bx, X_bx) = 1e-6;
 	_P(X_by, X_by) = 1e-6;
 	_P(X_bz, X_bz) = 1e-6;
-	_P(X_tz, X_tz) = 2 * EST_STDDEV_TZ_VALID * EST_STDDEV_TZ_VALID;
+	_P(X_tz, X_tz) = 2 * EST_STDDEV_TZ_VALID * EST_STDDEV_TZ_VALID; //terrain altitude
 }
 
+// 更新_P、_A、_B、_Q、_R
 void BlockLocalPositionEstimator::initSS()
 {
 	initP();
 
 	// dynamics matrix
+	// NED坐标下的系统矩阵，连续系统
 	_A.setZero();
 	// derivative of position is velocity
 	_A(X_x, X_vx) = 1;
@@ -877,6 +840,7 @@ void BlockLocalPositionEstimator::initSS()
 	updateSSParams();
 }
 
+// 消除“机体轴系”加速度偏差对于速度的影响
 void BlockLocalPositionEstimator::updateSSStates()
 {
 	// derivative of velocity is accelerometer acceleration
@@ -894,6 +858,8 @@ void BlockLocalPositionEstimator::updateSSStates()
 	_A(X_vz, X_bz) = -_R_att(2, 2);
 }
 
+// 输入噪声协方差阵和过程噪声协方差阵
+// 这里_R也是过程噪声的一部分
 void BlockLocalPositionEstimator::updateSSParams()
 {
 	// input noise covariance matrix
@@ -926,9 +892,9 @@ void BlockLocalPositionEstimator::updateSSParams()
 		_pn_t_noise_density.get() +
 		(_t_max_grade.get() / 100.0f) * sqrtf(_x(X_vx) * _x(X_vx) + _x(X_vy) * _x(X_vy));
 	_Q(X_tz, X_tz) = pn_t_noise_density * pn_t_noise_density;
-
 }
 
+// ！！！kalman滤波的预测更新
 void BlockLocalPositionEstimator::predict()
 {
 	// if can't update anything, don't propagate
@@ -936,19 +902,20 @@ void BlockLocalPositionEstimator::predict()
 	if (!_validXY && !_validZ) { return; }
 
 	if (integrate) {
+		// 加速度计的测量值作为输入量
 		matrix::Quaternion<float> q(&_sub_att.get().q[0]);
 		_eul = matrix::Euler<float>(q);
 		_R_att = matrix::Dcm<float>(q);
 		Vector3f a(_sub_sensor.get().accelerometer_m_s2);
 		// note, bias is removed in dynamics function
-		_u = _R_att * a;
-		_u(U_az) += 9.81f; // add g
-
+		_u = _R_att * a; //转化到机体轴系下
+		_u(U_az) += 9.81f; // add g  加速度计的测量没有重力
 	} else {
 		_u = Vector3f(0, 0, 0);
 	}
 
 	// update state space based on new states
+	// 利用新的旋转矩阵消除加速度偏差的影响
 	updateSSStates();
 
 	// continuous time kalman filter prediction
@@ -962,19 +929,19 @@ void BlockLocalPositionEstimator::predict()
 	k3 = dynamics(h / 2, _x + k2 * h / 2, _u);
 	k4 = dynamics(h, _x + k3 * h, _u);
 	Vector<float, n_x> dx = (k1 + k2 * 2 + k3 * 2 + k4) * (h / 6);
-
 	// propagate
 	correctionLogic(dx);
-	_x += dx;
+	_x += dx; //使用龙格库塔法求微分方程，减小计算误差
 	Matrix<float, n_x, n_x> dP = (_A * _P + _P * _A.transpose() +
-				      _B * _R * _B.transpose() + _Q) * getDt();
+				      _B * _R * _B.transpose() + _Q) * getDt(); //注意，(_B * _R * _B.transpose() + _Q)才是过程噪声的协方差阵
 	covPropagationLogic(dP);
 	_P += dP;
 
-	_xLowPass.update(_x);
+	_xLowPass.update(_x); //把状态填入低通滤波器
 	_aglLowPass.update(agl());
 }
 
+// 是要寻找与延时delay比较接近的状态序号periods，之后可以从_xDelay中将状态提取
 int BlockLocalPositionEstimator::getDelayPeriods(float delay, uint8_t *periods)
 {
 	float t_delay = 0;
@@ -982,15 +949,13 @@ int BlockLocalPositionEstimator::getDelayPeriods(float delay, uint8_t *periods)
 
 	for (i_hist = 1; i_hist < HIST_LEN; i_hist++) {
 		t_delay = 1.0e-6f * (_timeStamp - _tDelay.get(i_hist)(0, 0));
-
 		if (t_delay > delay) {
 			break;
 		}
 	}
-
 	*periods = i_hist;
 
-	if (t_delay > DELAY_MAX) {
+	if (t_delay > DELAY_MAX) { //DELAY_MAX=0.5
 		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] delayed data too old: %8.4f", double(t_delay));
 		return -1;
 	}

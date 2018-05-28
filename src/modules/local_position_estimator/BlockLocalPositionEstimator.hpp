@@ -29,7 +29,7 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/estimator_status.h>
-#include <uORB/topics/ekf2_innovations.h>
+#include <uORB/topics/ekf2_innovations.h> //创新
 
 using namespace matrix;
 using namespace control;
@@ -42,26 +42,25 @@ static const size_t N_DIST_SUBS = 4;
 
 enum fault_t {
 	FAULT_NONE = 0,
-	FAULT_MINOR,
-	FAULT_SEVERE
+	FAULT_MINOR, //较小的
+	FAULT_SEVERE //严重的
 };
 
 enum sensor_t {
-	SENSOR_BARO = 0,
-	SENSOR_GPS,
-	SENSOR_LIDAR,
-	SENSOR_FLOW,
-	SENSOR_SONAR,
-	SENSOR_VISION,
-	SENSOR_MOCAP,
-	SENSOR_LAND,
+	SENSOR_BARO = 0, //气压计
+	SENSOR_GPS,      //GPS
+	SENSOR_LIDAR,    //激光雷达
+	SENSOR_FLOW,     //光流
+	SENSOR_SONAR,    //超声波
+	SENSOR_VISION,   //视觉
+	SENSOR_MOCAP,    //动捕
+	SENSOR_LAND,     //地面
 };
 
 // change this to set when
 // the system will abort correcting a measurement
 // given a fault has been detected
 static const fault_t fault_lvl_disable = FAULT_SEVERE;
-
 // for fault detection
 // chi squared distribution, false alarm probability 0.0001
 // see fault_table.py
@@ -74,7 +73,9 @@ static const float BETA_TABLE[7] = {0,
 				    17.8797700658,
 				    19.6465647819,
 				   };
+// 这两个关于故障的变量并没有用到
 
+// 构造函数
 class BlockLocalPositionEstimator : public control::SuperBlock
 {
 // dynamics:
@@ -96,16 +97,16 @@ class BlockLocalPositionEstimator : public control::SuperBlock
 //		x(+|+) =  x(+|-) + K_i * (y_i - H_i * x(+|-) )
 //
 //
-// input:
+// input:  //加速度计的测量作为输入
 // 	ax, ay, az (acceleration NED)
 //
 // states:
 // 	px, py, pz , ( position NED, m)
 // 	vx, vy, vz ( vel NED, m/s),
-// 	bx, by, bz ( accel bias, m/s^2)
+// 	bx, by, bz ( accel bias, m/s^2)  //同时估计加速度偏差
 // 	tz (terrain altitude, ASL, m)
 //
-// measurements:
+// measurements: //不同的机载传感器的测量进行状态更新，数据融合
 //
 // 	sonar: pz (measured d*cos(phi)*cos(theta))
 //
@@ -126,6 +127,7 @@ class BlockLocalPositionEstimator : public control::SuperBlock
 public:
 
 	// constants
+	// 设定了不同向量的维数
 	enum {X_x = 0, X_y, X_z, X_vx, X_vy, X_vz, X_bx, X_by, X_bz, X_tz, n_x};
 	enum {U_ax = 0, U_ay, U_az, n_u};
 	enum {Y_baro_z = 0, n_y_baro};
@@ -161,50 +163,50 @@ private:
 	// predict the next state
 	void predict();
 
-	// lidar
-	int  lidarMeasure(Vector<float, n_y_lidar> &y);
+	// lidar  1
+	int  lidarMeasure(Vector<float, n_y_lidar> &y); //测量、修正、初始化、检查超时
 	void lidarCorrect();
 	void lidarInit();
 	void lidarCheckTimeout();
 
-	// sonar
+	// sonar  1
 	int  sonarMeasure(Vector<float, n_y_sonar> &y);
 	void sonarCorrect();
 	void sonarInit();
 	void sonarCheckTimeout();
 
-	// baro
+	// baro  1
 	int  baroMeasure(Vector<float, n_y_baro> &y);
 	void baroCorrect();
 	void baroInit();
 	void baroCheckTimeout();
 
-	// gps
+	// gps  6
 	int  gpsMeasure(Vector<double, n_y_gps> &y);
 	void gpsCorrect();
 	void gpsInit();
 	void gpsCheckTimeout();
 
-	// flow
+	// flow  2
 	int  flowMeasure(Vector<float, n_y_flow> &y);
 	void flowCorrect();
 	void flowInit();
 	void flowDeinit();
 	void flowCheckTimeout();
 
-	// vision
+	// vision  3
 	int  visionMeasure(Vector<float, n_y_vision> &y);
 	void visionCorrect();
 	void visionInit();
 	void visionCheckTimeout();
 
-	// mocap
+	// mocap  3
 	int  mocapMeasure(Vector<float, n_y_mocap> &y);
 	void mocapCorrect();
 	void mocapInit();
 	void mocapCheckTimeout();
 
-	// land
+	// land  1
 	int  landMeasure(Vector<float, n_y_land> &y);
 	void landCorrect();
 	void landInit();
@@ -213,9 +215,9 @@ private:
 	// timeouts
 	void checkTimeouts();
 
-	// misc
+	// misc 混杂的
 	float agl();
-	void correctionLogic(Vector<float, n_x> &dx);
+	void correctionLogic(Vector<float, n_x> &dx);           //n_x=10
 	void covPropagationLogic(Matrix<float, n_x, n_x> &dP);
 	void detectDistanceSensors();
 	int getDelayPeriods(float delay, uint8_t *periods);
@@ -229,23 +231,24 @@ private:
 	// ----------------------------
 
 	// subscriptions
+	// 算上land，8个传感器的测量
 	uORB::Subscription<actuator_armed_s> _sub_armed;
-	uORB::Subscription<vehicle_land_detected_s> _sub_land;
+	uORB::Subscription<vehicle_land_detected_s> _sub_land; //
 	uORB::Subscription<vehicle_attitude_s> _sub_att;
-	uORB::Subscription<optical_flow_s> _sub_flow;
-	uORB::Subscription<sensor_combined_s> _sub_sensor;
+	uORB::Subscription<optical_flow_s> _sub_flow; //
+	uORB::Subscription<sensor_combined_s> _sub_sensor; //
 	uORB::Subscription<parameter_update_s> _sub_param_update;
 	uORB::Subscription<manual_control_setpoint_s> _sub_manual;
-	uORB::Subscription<vehicle_gps_position_s> _sub_gps;
-	uORB::Subscription<vision_position_estimate_s> _sub_vision_pos;
-	uORB::Subscription<att_pos_mocap_s> _sub_mocap;
-	uORB::Subscription<distance_sensor_s> _sub_dist0;
+	uORB::Subscription<vehicle_gps_position_s> _sub_gps; //
+	uORB::Subscription<vision_position_estimate_s> _sub_vision_pos; //
+	uORB::Subscription<att_pos_mocap_s> _sub_mocap; //
+	uORB::Subscription<distance_sensor_s> _sub_dist0; //距离传感器
 	uORB::Subscription<distance_sensor_s> _sub_dist1;
 	uORB::Subscription<distance_sensor_s> _sub_dist2;
 	uORB::Subscription<distance_sensor_s> _sub_dist3;
 	uORB::Subscription<distance_sensor_s> *_dist_subs[N_DIST_SUBS];
-	uORB::Subscription<distance_sensor_s> *_sub_lidar;
-	uORB::Subscription<distance_sensor_s> *_sub_sonar;
+	uORB::Subscription<distance_sensor_s> *_sub_lidar; //
+	uORB::Subscription<distance_sensor_s> *_sub_sonar; //
 
 	// publications
 	uORB::Publication<vehicle_local_position_s> _pub_lpos;
@@ -262,8 +265,8 @@ private:
 	BlockParamFloat  _z_pub_thresh;
 
 	// sonar parameters
-	BlockParamFloat  _sonar_z_stddev;
-	BlockParamFloat  _sonar_z_offset;
+	BlockParamFloat  _sonar_z_stddev; //标准偏差
+	BlockParamFloat  _sonar_z_offset; //补偿
 
 	// lidar parameters
 	BlockParamFloat  _lidar_z_stddev;
@@ -307,6 +310,7 @@ private:
 	BlockParamFloat  _land_z_stddev;
 
 	// process noise
+	// 过程噪声
 	BlockParamFloat  _pn_p_noise_density;
 	BlockParamFloat  _pn_v_noise_density;
 	BlockParamFloat  _pn_b_noise_density;
@@ -314,10 +318,12 @@ private:
 	BlockParamFloat  _t_max_grade;
 
 	// init origin
+	// 初始来源
 	BlockParamFloat  _init_origin_lat;
 	BlockParamFloat  _init_origin_lon;
 
 	// flow gyro filter
+	// 高通滤波器
 	BlockHighPass _flow_gyro_x_high_pass;
 	BlockHighPass _flow_gyro_y_high_pass;
 
@@ -332,6 +338,7 @@ private:
 	uint16_t _landCount;
 
 	// low pass
+	// 状态的低通滤波器
 	BlockLowPassVector<float, n_x> _xLowPass;
 	BlockLowPass _aglLowPass;
 
@@ -383,6 +390,7 @@ private:
 	bool _lastArmedState;
 
 	// sensor faults
+	// 作为标志位，没有实际的控制作用
 	fault_t _baroFault;
 	fault_t _gpsFault;
 	fault_t _lidarFault;
@@ -393,6 +401,7 @@ private:
 	fault_t _landFault;
 
 	// performance counters
+	// 性能计数器
 	perf_counter_t _loop_perf;
 	perf_counter_t _interval_perf;
 	perf_counter_t _err_perf;

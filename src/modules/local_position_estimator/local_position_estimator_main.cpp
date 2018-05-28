@@ -39,6 +39,9 @@
  *
  * Local position estimator
  */
+// local_position_estimation 和 attitude_estimator_q 是一对cp
+// 分别用于进行位置估计和姿态估计，二者都会用到动捕的信息
+// 但是，attitude_estimator_q 中，主要是使用动捕信息修正航向，并不用于其他姿态的估计
 
 #include <unistd.h>
 #include <stdio.h>
@@ -152,12 +155,12 @@ int local_position_estimator_thread_main(int argc, char *argv[])
 
 	using namespace control;
 
-	BlockLocalPositionEstimator est;
+	BlockLocalPositionEstimator est; //定义实现功能的class变量
 
 	thread_running = true;
 
 	while (!thread_should_exit) {
-		est.update();
+		est.update(); //KF功能实现，位置估计
 	}
 
 	PX4_DEBUG("exiting.");
