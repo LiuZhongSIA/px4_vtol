@@ -105,7 +105,7 @@ class BlockLocalPositionEstimator : public control::SuperBlock
 // 	px, py, pz , ( position NED, m)
 // 	vx, vy, vz ( vel NED, m/s),
 // 	bx, by, bz ( accel bias, m/s^2)  //同时估计加速度偏差
-// 	tz (terrain altitude, ASL, m)
+// 	tz (terrain altitude, ASL, m) //地形高度
 //
 // measurements: //不同的机载传感器的测量进行状态更新，数据融合
 //

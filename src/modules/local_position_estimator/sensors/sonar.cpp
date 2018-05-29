@@ -10,29 +10,26 @@ static const int 		REQ_SONAR_INIT_COUNT = 10;
 static const uint32_t 	SONAR_TIMEOUT =   5000000; // 2.0 s
 static const float  	SONAR_MAX_INIT_STD =   0.3f; // meters
 
+// 距离传感器之一，超声波
 void BlockLocalPositionEstimator::sonarInit()
 {
 	// measure
 	Vector<float, n_y_sonar> y;
-
 	if (_sonarStats.getCount() == 0) {
 		_time_init_sonar = _timeStamp;
 	}
-
 	if (sonarMeasure(y) != OK) {
 		return;
 	}
 
 	// if finished
-	if (_sonarStats.getCount() > REQ_SONAR_INIT_COUNT) {
-		if (_sonarStats.getStdDev()(0) > SONAR_MAX_INIT_STD) {
+	if (_sonarStats.getCount() > REQ_SONAR_INIT_COUNT) { //连续的测量数量
+		if (_sonarStats.getStdDev()(0) > SONAR_MAX_INIT_STD) { //测量精度
 			mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] sonar init std > min");
 			_sonarStats.reset();
-
-		} else if ((_timeStamp - _time_init_sonar) > SONAR_TIMEOUT) {
+		} else if ((_timeStamp - _time_init_sonar) > SONAR_TIMEOUT) { //测量超时
 			mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] sonar init timeout ");
 			_sonarStats.reset();
-
 		} else {
 			PX4_INFO("[lpe] sonar init "
 				 "mean %d cm std %d cm",
@@ -51,12 +48,10 @@ int BlockLocalPositionEstimator::sonarMeasure(Vector<float, n_y_sonar> &y)
 	float eps = 0.01f; // 1 cm
 	float min_dist = _sub_sonar->get().min_distance + eps;
 	float max_dist = _sub_sonar->get().max_distance - eps;
-
 	// prevent driver from setting min dist below eps
 	if (min_dist < eps) {
 		min_dist = eps;
 	}
-
 	// check for bad data
 	if (d > max_dist || d < min_dist) {
 		return -1;
@@ -66,7 +61,7 @@ int BlockLocalPositionEstimator::sonarMeasure(Vector<float, n_y_sonar> &y)
 	_sonarStats.update(Scalarf(d));
 	_time_last_sonar = _timeStamp;
 	y.setZero();
-	y(0) = (d + _sonar_z_offset.get()) *
+	y(0) = (d + _sonar_z_offset.get()) * //机体轴系下的距离转化为惯性系下
 	       cosf(_eul(0)) *
 	       cosf(_eul(1));
 	return OK;
@@ -76,7 +71,6 @@ void BlockLocalPositionEstimator::sonarCorrect()
 {
 	// measure
 	Vector<float, n_y_sonar> y;
-
 	if (sonarMeasure(y) != OK) { return; }
 
 	// do not use sonar if lidar is active
@@ -84,7 +78,6 @@ void BlockLocalPositionEstimator::sonarCorrect()
 
 	// calculate covariance
 	float cov = _sub_sonar->get().covariance;
-
 	if (cov < 1.0e-3f) {
 		// use sensor value if reasoanble
 		cov = _sonar_z_stddev.get() * _sonar_z_stddev.get();
@@ -95,8 +88,9 @@ void BlockLocalPositionEstimator::sonarCorrect()
 	C.setZero();
 	// y = -(z - tz)
 	// TODO could add trig to make this an EKF correction
+	// 超声波向下，测量与地面距离
 	C(Y_sonar_z, X_z) = -1; // measured altitude, negative down dir.
-	C(Y_sonar_z, X_tz) = 1; // measured altitude, negative down dir.
+	C(Y_sonar_z, X_tz) = 1;
 
 	// covariance matrix
 	SquareMatrix<float, n_y_sonar> R;
@@ -107,23 +101,19 @@ void BlockLocalPositionEstimator::sonarCorrect()
 	Vector<float, n_y_sonar> r = y - C * _x;
 	_pub_innov.get().hagl_innov = r(0);
 	_pub_innov.get().hagl_innov_var = R(0, 0);
-
 	// residual covariance, (inverse)
 	Matrix<float, n_y_sonar, n_y_sonar> S_I =
 		inv<float, n_y_sonar>(C * _P * C.transpose() + R);
-
+	
 	// fault detection
 	float beta = (r.transpose()  * (S_I * r))(0, 0);
-
 	if (beta > BETA_TABLE[n_y_sonar]) {
 		if (_sonarFault < FAULT_MINOR) {
 			_sonarFault = FAULT_MINOR;
 			//mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] sonar fault,  beta %5.2f", double(beta));
 		}
-
 		// abort correction
 		return;
-
 	} else if (_sonarFault) {
 		_sonarFault = FAULT_NONE;
 		//mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] sonar OK");
@@ -138,7 +128,6 @@ void BlockLocalPositionEstimator::sonarCorrect()
 		_x += dx;
 		_P -= K * C * _P;
 	}
-
 }
 
 void BlockLocalPositionEstimator::sonarCheckTimeout()
@@ -151,5 +140,3 @@ void BlockLocalPositionEstimator::sonarCheckTimeout()
 		}
 	}
 }
-
-

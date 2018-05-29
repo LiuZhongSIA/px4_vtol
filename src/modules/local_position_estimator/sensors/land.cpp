@@ -30,7 +30,7 @@ void BlockLocalPositionEstimator::landInit()
 int BlockLocalPositionEstimator::landMeasure(Vector<float, n_y_land> &y)
 {
 	_time_last_land = _timeStamp;
-	y.setZero();
+	y.setZero(); //并没有更新测量值，该传感器对于位置解算没有作用
 	_landCount += 1;
 	return OK;
 }

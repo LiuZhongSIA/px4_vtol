@@ -18,7 +18,6 @@ void BlockLocalPositionEstimator::visionInit()
 {
 	// measure
 	Vector<float, n_y_vision> y;
-
 	if (visionMeasure(y) != OK) {
 		_visionStats.reset();
 		return;
@@ -28,12 +27,12 @@ void BlockLocalPositionEstimator::visionInit()
 	if (_visionStats.getCount() > REQ_VISION_INIT_COUNT) {
 		mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] vision position init: "
 					     "%5.2f %5.2f %5.2f m std %5.2f %5.2f %5.2f m",
-					     double(_visionStats.getMean()(0)),
+					     double(_visionStats.getMean()(0)), //位置
 					     double(_visionStats.getMean()(1)),
 					     double(_visionStats.getMean()(2)),
 					     double(_visionStats.getStdDev()(0)),
 					     double(_visionStats.getStdDev()(1)),
-					     double(_visionStats.getStdDev()(2)));
+					     double(_visionStats.getStdDev()(2))); //姿态在attitude_estimator_q中只使用了航向信息
 		_visionInitialized = true;
 		_visionFault = FAULT_NONE;
 
@@ -59,7 +58,6 @@ void BlockLocalPositionEstimator::visionCorrect()
 {
 	// measure
 	Vector<float, n_y_vision> y;
-
 	if (visionMeasure(y) != OK) { return; }
 
 	// vision measurement matrix, measures position
@@ -77,10 +75,9 @@ void BlockLocalPositionEstimator::visionCorrect()
 	R(Y_vision_z, Y_vision_z) = _vision_z_stddev.get() * _vision_z_stddev.get();
 
 	// vision delayed x
+	// 状态延时补偿，找到与延时相对应的系统状态
 	uint8_t i_hist = 0;
-
 	if (getDelayPeriods(_vision_delay.get(), &i_hist)  < 0) { return; }
-
 	Vector<float, n_x> x0 = _xDelay.get(i_hist);
 
 	// residual
@@ -89,13 +86,11 @@ void BlockLocalPositionEstimator::visionCorrect()
 
 	// fault detection
 	float beta = (r.transpose() * (S_I * r))(0, 0);
-
 	if (beta > BETA_TABLE[n_y_vision]) {
 		if (_visionFault < FAULT_MINOR) {
 			//mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] vision position fault, beta %5.2f", double(beta));
 			_visionFault = FAULT_MINOR;
 		}
-
 	} else if (_visionFault) {
 		_visionFault = FAULT_NONE;
 		//mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] vision position OK");
