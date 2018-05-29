@@ -13,7 +13,6 @@ void BlockLocalPositionEstimator::mocapInit()
 {
 	// measure
 	Vector<float, n_y_mocap> y;
-
 	if (mocapMeasure(y) != OK) {
 		_mocapStats.reset();
 		return;
@@ -34,7 +33,7 @@ void BlockLocalPositionEstimator::mocapInit()
 
 		if (!_altOriginInitialized) {
 			_altOriginInitialized = true;
-			_altOrigin = 0;
+			_altOrigin = 0; //动捕下的测量不用于高度的初始化
 		}
 	}
 }
@@ -44,7 +43,7 @@ int BlockLocalPositionEstimator::mocapMeasure(Vector<float, n_y_mocap> &y)
 	y.setZero();
 	y(Y_mocap_x) = _sub_mocap.get().x;
 	y(Y_mocap_y) = _sub_mocap.get().y;
-	y(Y_mocap_z) = _sub_mocap.get().z;
+	y(Y_mocap_z) = _sub_mocap.get().z; //严格来说，这里减去初始值，效果应该更好
 	_mocapStats.update(y);
 	_time_last_mocap = _sub_mocap.get().timestamp;
 	return OK;
@@ -54,13 +53,12 @@ void BlockLocalPositionEstimator::mocapCorrect()
 {
 	// measure
 	Vector<float, n_y_mocap> y;
-
 	if (mocapMeasure(y) != OK) { return; }
 
 	// mocap measurement matrix, measures position
 	Matrix<float, n_y_mocap, n_x> C;
 	C.setZero();
-	C(Y_mocap_x, X_x) = 1;
+	C(Y_mocap_x, X_x) = 1; //动捕只测量位置信息
 	C(Y_mocap_y, X_y) = 1;
 	C(Y_mocap_z, X_z) = 1;
 
@@ -79,13 +77,11 @@ void BlockLocalPositionEstimator::mocapCorrect()
 
 	// fault detection
 	float beta = (r.transpose() * (S_I * r))(0, 0);
-
 	if (beta > BETA_TABLE[n_y_mocap]) {
 		if (_mocapFault < FAULT_MINOR) {
 			//mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap fault, beta %5.2f", double(beta));
 			_mocapFault = FAULT_MINOR;
 		}
-
 	} else if (_mocapFault) {
 		_mocapFault = FAULT_NONE;
 		//mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] mocap OK");
@@ -101,6 +97,7 @@ void BlockLocalPositionEstimator::mocapCorrect()
 	}
 }
 
+// 如果存在长时间的数据丢包，传感器就得重新进行初始化
 void BlockLocalPositionEstimator::mocapCheckTimeout()
 {
 	if (_timeStamp - _time_last_mocap > MOCAP_TIMEOUT) {

@@ -9,16 +9,16 @@ extern orb_advert_t mavlink_log_pub;
 static const uint32_t 		REQ_GPS_INIT_COUNT = 10;
 static const uint32_t 		GPS_TIMEOUT =      1000000; // 1.0 s
 
+// GPS初始化
 void BlockLocalPositionEstimator::gpsInit()
 {
 	// check for good gps signal
-	uint8_t nSat = _sub_gps.get().satellites_used;
+	uint8_t nSat = _sub_gps.get().satellites_used; //卫星数量
 	float eph = _sub_gps.get().eph;
 	float epv = _sub_gps.get().epv;
-	uint8_t fix_type = _sub_gps.get().fix_type;
+	uint8_t fix_type = _sub_gps.get().fix_type; //定位模式
 
-	if (
-		nSat < 6 ||
+	if (nSat < 6 ||
 		eph > _gps_eph_max.get() ||
 		epv > _gps_epv_max.get() ||
 		fix_type < 3
@@ -29,7 +29,6 @@ void BlockLocalPositionEstimator::gpsInit()
 
 	// measure
 	Vector<double, n_y_gps> y;
-
 	if (gpsMeasure(y) != OK) {
 		_gpsStats.reset();
 		return;
@@ -50,10 +49,11 @@ void BlockLocalPositionEstimator::gpsInit()
 			// this is the first time we have received gps
 			_receivedGps = true;
 
+			// 根据当下的GPS信息，获得初始位置的GPS位置
+			// 因为GPS的初始化测量未必就和初始位置重合
 			// note we subtract X_z which is in down directon so it is
 			// an addition
 			_gpsAltOrigin = gpsAlt + _x(X_z);
-
 			// find lat, lon of current origin by subtracting x and y
 			double gpsLatOrigin = 0;
 			double gpsLonOrigin = 0;
@@ -78,6 +78,7 @@ void BlockLocalPositionEstimator::gpsInit()
 	}
 }
 
+// GPS测量值
 int BlockLocalPositionEstimator::gpsMeasure(Vector<double, n_y_gps> &y)
 {
 	// gps measurement
@@ -95,11 +96,11 @@ int BlockLocalPositionEstimator::gpsMeasure(Vector<double, n_y_gps> &y)
 	return OK;
 }
 
+// 基于GPS的测量，进行Kalman滤波的测量更新
 void BlockLocalPositionEstimator::gpsCorrect()
 {
 	// measure
 	Vector<double, n_y_gps> y_global;
-
 	if (gpsMeasure(y_global) != OK) { return; }
 
 	// gps measurement in local frame
@@ -112,7 +113,7 @@ void BlockLocalPositionEstimator::gpsCorrect()
 	map_projection_project(&_map_ref, lat, lon, &px, &py);
 	Vector<float, 6> y;
 	y.setZero();
-	y(0) = px;
+	y(0) = px; //获得NED坐标系下的位置和速度信息，作为GPS的测量值
 	y(1) = py;
 	y(2) = pz;
 	y(3) = y_global(3);
@@ -130,35 +131,28 @@ void BlockLocalPositionEstimator::gpsCorrect()
 	C(Y_gps_vz, X_vz) = 1;
 
 	// gps covariance matrix
+	// GPS的测量噪声协方差阵
 	SquareMatrix<float, n_y_gps> R;
 	R.setZero();
-
 	// default to parameter, use gps cov if provided
 	float var_xy = _gps_xy_stddev.get() * _gps_xy_stddev.get();
 	float var_z = _gps_z_stddev.get() * _gps_z_stddev.get();
 	float var_vxy = _gps_vxy_stddev.get() * _gps_vxy_stddev.get();
 	float var_vz = _gps_vz_stddev.get() * _gps_vz_stddev.get();
-
 	// if field is not below minimum, set it to the value provided
 	if (_sub_gps.get().eph > _gps_xy_stddev.get()) {
 		var_xy = _sub_gps.get().eph * _sub_gps.get().eph;
 	}
-
 	if (_sub_gps.get().epv > _gps_z_stddev.get()) {
 		var_z = _sub_gps.get().epv * _sub_gps.get().epv;
 	}
-
 	float gps_s_stddev =  _sub_gps.get().s_variance_m_s;
-
 	if (gps_s_stddev > _gps_vxy_stddev.get()) {
 		var_vxy = gps_s_stddev * gps_s_stddev;
 	}
-
 	if (gps_s_stddev > _gps_vz_stddev.get()) {
 		var_vz = gps_s_stddev * gps_s_stddev;
 	}
-
-
 	R(0, 0) = var_xy;
 	R(1, 1) = var_xy;
 	R(2, 2) = var_z;
@@ -167,25 +161,22 @@ void BlockLocalPositionEstimator::gpsCorrect()
 	R(5, 5) = var_vz;
 
 	// get delayed x
+	// 时间轴对其，找到与当前GPS信息相对应的状态值
 	uint8_t i_hist = 0;
-
 	if (getDelayPeriods(_gps_delay.get(), &i_hist)  < 0) { return; }
-
 	Vector<float, n_x> x0 = _xDelay.get(i_hist);
 
 	// residual
 	Vector<float, n_y_gps> r = y - C * x0;
-
 	for (int i = 0; i < 6; i ++) {
 		_pub_innov.get().vel_pos_innov[i] = r(i);
 		_pub_innov.get().vel_pos_innov_var[i] = R(i, i);
 	}
-
 	Matrix<float, n_y_gps, n_y_gps> S_I = inv<float, 6>(C * _P * C.transpose() + R);
 
 	// fault detection
+	// 判断是否出现GPS故障
 	float beta = (r.transpose() * (S_I * r))(0, 0);
-
 	if (beta > BETA_TABLE[n_y_gps]) {
 		if (_gpsFault < FAULT_MINOR) {
 			if (beta > 3.0f * BETA_TABLE[n_y_gps]) {
@@ -193,16 +184,15 @@ void BlockLocalPositionEstimator::gpsCorrect()
 						     double(r(0)*r(0) / S_I(0, 0)),  double(r(1)*r(1) / S_I(1, 1)), double(r(2)*r(2) / S_I(2, 2)),
 						     double(r(3)*r(3) / S_I(3, 3)),  double(r(4)*r(4) / S_I(4, 4)), double(r(5)*r(5) / S_I(5, 5)));
 			}
-
 			_gpsFault = FAULT_MINOR;
 		}
-
 	} else if (_gpsFault) {
 		_gpsFault = FAULT_NONE;
 		//mavlink_and_console_log_info(&mavlink_log_pub, "[lpe] GPS OK");
 	}
 
 	// kalman filter correction if no hard fault
+	// 根据代码设置，不会出现严重故障，所以一定会进行测量更新
 	if (_gpsFault < fault_lvl_disable) {
 		Matrix<float, n_x, n_y_gps> K = _P * C.transpose() * S_I;
 		Vector<float, n_x> dx = K * r;
@@ -212,6 +202,8 @@ void BlockLocalPositionEstimator::gpsCorrect()
 	}
 }
 
+// 会不会出现长时间的GPS信号的丢失（GPS丢星）
+// 如果出现，重置GPS状态，GPS需要进行重新初始化
 void BlockLocalPositionEstimator::gpsCheckTimeout()
 {
 	if (_timeStamp - _time_last_gps > GPS_TIMEOUT) {

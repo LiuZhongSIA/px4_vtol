@@ -58,7 +58,7 @@ void BlockLocalPositionEstimator::baroCorrect()
 	if (baroMeasure(y) != OK) { return; }
 
 	// subtract baro origin alt
-	// 气压计的测量高度
+	// 气压计的测量高度，默认使用气压计进行高度初始化
 	y -= _baroAltOrigin;
 
 	// baro measurement matrix
