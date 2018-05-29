@@ -53,7 +53,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_pub_lpos(ORB_ID(vehicle_local_position), -1, &getPublications()),
 	_pub_gpos(ORB_ID(vehicle_global_position), -1, &getPublications()),
 	_pub_est_status(ORB_ID(estimator_status), -1, &getPublications()),
-	_pub_innov(ORB_ID(ekf2_innovations), -1, &getPublications()),
+	_pub_innov(ORB_ID(ekf2_innovations), -1, &getPublications()), //innovation被翻译为“新息”，是对Kalman滤波过程中关键性信息的记录
 
 	// map projection
 	_map_ref(),
@@ -287,7 +287,7 @@ void BlockLocalPositionEstimator::update()
 	// see which updates are available
 	bool flowUpdated = _sub_flow.updated();
 	bool paramsUpdated = _sub_param_update.updated();
-	bool baroUpdated = _sub_sensor.updated();
+	bool baroUpdated = _sub_sensor.updated(); //获得气压计和加速度计信息
 	bool gpsUpdated = _gps_on.get() && _sub_gps.updated(); //GPS要使能
 	bool visionUpdated = _vision_on.get() && _sub_vision_pos.updated(); //视觉修正要使能
 	bool mocapUpdated = _sub_mocap.updated();

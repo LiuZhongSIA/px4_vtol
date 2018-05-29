@@ -60,11 +60,13 @@ enum sensor_t {
 // change this to set when
 // the system will abort correcting a measurement
 // given a fault has been detected
+// 当传感器故障不是严重故障时，才会用传感器信息进行测量更新
 static const fault_t fault_lvl_disable = FAULT_SEVERE;
 // for fault detection
 // chi squared distribution, false alarm probability 0.0001
 // see fault_table.py
 // note skip 0 index so we can use degree of freedom as index
+// 设置的故障诊断阈值
 static const float BETA_TABLE[7] = {0,
 				    8.82050518214,
 				    12.094592431,
@@ -73,7 +75,6 @@ static const float BETA_TABLE[7] = {0,
 				    17.8797700658,
 				    19.6465647819,
 				   };
-// 这两个关于故障的变量并没有用到
 
 // 构造函数
 class BlockLocalPositionEstimator : public control::SuperBlock
@@ -235,10 +236,10 @@ private:
 	uORB::Subscription<actuator_armed_s> _sub_armed;
 	uORB::Subscription<vehicle_land_detected_s> _sub_land; //
 	uORB::Subscription<vehicle_attitude_s> _sub_att;
-	uORB::Subscription<optical_flow_s> _sub_flow; //
-	uORB::Subscription<sensor_combined_s> _sub_sensor; //
 	uORB::Subscription<parameter_update_s> _sub_param_update;
 	uORB::Subscription<manual_control_setpoint_s> _sub_manual;
+	uORB::Subscription<optical_flow_s> _sub_flow; //
+	uORB::Subscription<sensor_combined_s> _sub_sensor; //
 	uORB::Subscription<vehicle_gps_position_s> _sub_gps; //
 	uORB::Subscription<vision_position_estimate_s> _sub_vision_pos; //
 	uORB::Subscription<att_pos_mocap_s> _sub_mocap; //
