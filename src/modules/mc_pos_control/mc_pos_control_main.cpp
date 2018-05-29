@@ -1615,7 +1615,8 @@ MulticopterPositionControl::task_main()
 			/* select control source */
 			if (_control_mode.flag_control_manual_enabled) {
 				/* manual control */
-				control_manual(dt);
+				control_manual(dt); //根据杆量生成了位置期望or速度期望
+				                    //变量_run_pos_control和_run_alt_control用于判断时进行位置控制还是速度控制
 			} else if (_control_mode.flag_control_offboard_enabled) {
 				/* offboard control */
 				control_offboard(dt);
@@ -1900,7 +1901,7 @@ MulticopterPositionControl::task_main()
 						thrust_sp.zero();
 						thrust_sp(2) = -_takeoff_thrust_sp;
 					}
-					// 没有速度控制时，不能产生拉力期望
+					// 仅“高度控制”时，水平面上的拉力值设为0
 					if (!_control_mode.flag_control_velocity_enabled && !_control_mode.flag_control_acceleration_enabled) {
 						thrust_sp(0) = 0.0f;
 						thrust_sp(1) = 0.0f;
@@ -2055,6 +2056,8 @@ MulticopterPositionControl::task_main()
 
 					/* calculate attitude setpoint from thrust vector */
 					// 根据拉力期望计算所需要的姿态角度期望 ！！！
+					// 仅“高度控制”时，不会生成姿态期望
+					// “位置控制” by “几何控制”
 					if (_control_mode.flag_control_velocity_enabled || _control_mode.flag_control_acceleration_enabled) {
 						// 速度控制 or 加速度哦控制，需要外环生成姿态期望
 						
@@ -2063,17 +2066,21 @@ MulticopterPositionControl::task_main()
 						math::Vector<3> body_y;
 						math::Vector<3> body_z;
 						
-						if (thrust_abs > SIGMA) { //总的旋翼拉力
-							body_z = -thrust_sp / thrust_abs; //---
+						// z轴拉力的方向，单位向量
+						if (thrust_abs > SIGMA) {
+							body_z = -thrust_sp / thrust_abs;
 						} else {
 							/* no thrust, set Z axis to safe value */
 							body_z.zero();
 							body_z(2) = 1.0f;
 						}
+
 						/* vector of desired yaw direction in XY plane, rotated by PI/2 */
+						// 进一步引入航向期望
 						math::Vector<3> y_C(-sinf(_att_sp.yaw_body), cosf(_att_sp.yaw_body), 0.0f);
 						if (fabsf(body_z(2)) > SIGMA) {
 							/* desired body_x axis, orthogonal to body_z */
+							// 注意，这里的“%”是向量的叉乘！！！
 							body_x = y_C % body_z; //---
 							/* keep nose to front while inverted upside down */
 							if (body_z(2) < 0.0f) {
@@ -2090,6 +2097,7 @@ MulticopterPositionControl::task_main()
 						body_y = body_z % body_x; //---
 
 						/* fill rotation matrix */
+						// 生成旋转矩阵，由旋转矩阵生成四元数
 						for (int i = 0; i < 3; i++) {
 							R(i, 0) = body_x(i);
 							R(i, 1) = body_y(i);
@@ -2100,7 +2108,7 @@ MulticopterPositionControl::task_main()
 						memcpy(&_att_sp.q_d[0], q_sp.data(), sizeof(_att_sp.q_d));
 						_att_sp.q_d_valid = true;
 						/* calculate euler angles, for logging only, must not be used for control */
-						// 不要用于控制？？？
+						// 不要用于控制
 						matrix::Eulerf euler = R;
 						_att_sp.roll_body = euler(0);
 						_att_sp.pitch_body = euler(1);
@@ -2239,6 +2247,7 @@ MulticopterPositionControl::task_main()
 		}
 
 		/* generate attitude setpoint from manual controls */
+		// 手动且姿态控制，包含“高度控制”
 		if (_control_mode.flag_control_manual_enabled && _control_mode.flag_control_attitude_enabled) {
 			// 手动且姿态控制，直接遥控器生成姿态期望（V44待修改）
 
@@ -2267,6 +2276,7 @@ MulticopterPositionControl::task_main()
 			}
 
 			/* control throttle directly if no climb rate controller is active */
+			// 如果不进行“高度控制”，杆量直接给油门量
 			if (!_control_mode.flag_control_climb_rate_enabled) {
 				float thr_val = throttle_curve(_manual.z, _params.thr_hover); //杆量给到油门
 				_att_sp.thrust = math::min(thr_val, _manual_thr_max.get());
@@ -2369,6 +2379,14 @@ MulticopterPositionControl::task_main()
 							}
 							break;
 					}
+				}
+				// 进一步进行大旋翼转角下的“高度控制”
+				// 大旋翼转角意味着较大飞行速度，可以使用俯仰角进行高度控制
+				if(_control_mode.flag_control_climb_rate_enabled &&
+				   (_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
+				    _vtol_schedule.flight_mode == FW_MODE ||
+					_vtol_schedule.flight_mode == TRANSITION_BACK_P1)){
+
 				}
 
 				// 根据处于的状态，决定杆量的生成量

@@ -883,14 +883,16 @@ MulticopterAttitudeControl::control_attitude(float dt)
 	/* all input data is ready, run controller itself */
 
 	/* try to move thrust vector shortest way, because yaw response is slower than roll/pitch */
+	// 首先，考虑期望拉力和实际拉力（Z轴）的夹角，以及旋转轴
 	math::Vector<3> R_z(R(0, 2), R(1, 2), R(2, 2));
 	math::Vector<3> R_sp_z(R_sp(0, 2), R_sp(1, 2), R_sp(2, 2));
 
 	/* axis and sin(angle) of desired rotation */
-	math::Vector<3> e_R = R.transposed() * (R_z % R_sp_z);
+	math::Vector<3> e_R = R.transposed() * (R_z % R_sp_z); //(R_z % R_sp_z)计算出旋转轴
+	                                                       //R.transposed()旋转到机体轴系下
 
 	/* calculate angle error */
-	float e_R_z_sin = e_R.length();
+	float e_R_z_sin = e_R.length(); //这是一个绝对值，会导致下面atan2f求得的角度总在0～180度之间
 	float e_R_z_cos = R_z * R_sp_z;
 
 	/* calculate weight for yaw control */
@@ -901,10 +903,10 @@ MulticopterAttitudeControl::control_attitude(float dt)
 
 	if (e_R_z_sin > 0.0f) {
 		/* get axis-angle representation */
-		float e_R_z_angle = atan2f(e_R_z_sin, e_R_z_cos);
-		math::Vector<3> e_R_z_axis = e_R / e_R_z_sin;
+		float e_R_z_angle = atan2f(e_R_z_sin, e_R_z_cos); //夹角，对应于roll和pitch的偏差
+		math::Vector<3> e_R_z_axis = e_R / e_R_z_sin; //旋转轴归一化
 
-		e_R = e_R_z_axis * e_R_z_angle;
+		e_R = e_R_z_axis * e_R_z_angle; //进一步生成各个方向的角度偏差，旋转矢量
 
 		/* cross product matrix for e_R_axis */
 		math::Matrix<3, 3> e_R_cp;
@@ -917,6 +919,9 @@ MulticopterAttitudeControl::control_attitude(float dt)
 		e_R_cp(2, 1) = e_R_z_axis(0);
 
 		/* rotation matrix for roll/pitch only rotation */
+		// 这个旋转矩阵认为roll和pitch已经旋转完成了
+		// 通过旋转矢量计算完成roll和pitch旋转的旋转矩阵，再投影到惯性系下
+		// see “Quaternion kinematics for the error-state KF”
 		R_rp = R * (_I + e_R_cp * e_R_z_sin + e_R_cp * e_R_cp * (1.0f - e_R_z_cos));
 
 	} else {
@@ -925,16 +930,19 @@ MulticopterAttitudeControl::control_attitude(float dt)
 	}
 
 	/* R_rp and R_sp has the same Z axis, calculate yaw error */
+	// 计算航向误差
 	math::Vector<3> R_sp_x(R_sp(0, 0), R_sp(1, 0), R_sp(2, 0));
 	math::Vector<3> R_rp_x(R_rp(0, 0), R_rp(1, 0), R_rp(2, 0));
-	e_R(2) = atan2f((R_rp_x % R_sp_x) * R_sp_z, R_rp_x * R_sp_x) * yaw_w;
+	e_R(2) = atan2f((R_rp_x % R_sp_x) * R_sp_z, R_rp_x * R_sp_x) * yaw_w; //(R_rp_x % R_sp_x)的方向与R_sp_z方向重合
+	                                                                      //(R_rp_x % R_sp_x).length()总是正的，计算的航向误差应该在-180～180度之间
 
+	// 拉力方向相差角度较大，大于90度
 	if (e_R_z_cos < 0.0f) {
 		/* for large thrust vector rotations use another rotation method:
 		 * calculate angle and axis for R -> R_sp rotation directly */
 		math::Quaternion q_error;
-		q_error.from_dcm(R.transposed() * R_sp);
-		math::Vector<3> e_R_d = q_error(0) >= 0.0f ? q_error.imag()  * 2.0f : -q_error.imag() * 2.0f;
+		q_error.from_dcm(R.transposed() * R_sp); //四元数的差
+		math::Vector<3> e_R_d = q_error(0) >= 0.0f ? q_error.imag()  * 2.0f : -q_error.imag() * 2.0f; //虚部×2，准确来说应该是2asin(虚部)
 
 		/* use fusion of Z axis based rotation and direct rotation */
 		float direct_w = e_R_z_cos * e_R_z_cos * yaw_w;
