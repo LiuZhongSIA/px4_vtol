@@ -714,7 +714,7 @@ bool AttitudeEstimatorQ::update(float dt)
 
 	_rates = _gyro + _gyro_bias;
 	// Feed forward gyro
-	corr += _rates;
+	corr += _rates; //corr中实际上存放的是旋转矢量，因为_gyro中存放的也不是pqr，而是角度的增量
 	// Apply correction to state
 	_q += _q.derivative(corr) * dt;
 	// Normalize quaternion
