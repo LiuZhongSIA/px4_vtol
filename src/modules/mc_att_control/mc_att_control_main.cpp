@@ -52,6 +52,7 @@
  * Controller doesn't use Euler angles for work, they generated only for more human-friendly control and logging.
  * If rotation matrix setpoint is invalid it will be generated from Euler angles for compatibility with old position controllers.
  */
+// 线程运行频率150～350Hz，波动较大
 
 #include <px4_config.h>
 #include <px4_defines.h>

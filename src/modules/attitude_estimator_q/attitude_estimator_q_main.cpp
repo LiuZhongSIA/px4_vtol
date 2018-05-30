@@ -38,6 +38,7 @@
  *
  * @author Anton Babushkin <anton.babushkin@me.com>
  */
+// 线程运行频率250Hz左右
 
 #include <px4_config.h>
 #include <px4_posix.h>

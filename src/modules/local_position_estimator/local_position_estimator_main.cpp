@@ -39,6 +39,7 @@
  *
  * Local position estimator
  */
+// 线程运行频率100Hz左右
 // local_position_estimation 和 attitude_estimator_q 是一对cp
 // 分别用于进行位置估计和姿态估计，二者都会用到动捕的信息
 // 但是，attitude_estimator_q 中，主要是使用动捕信息修正航向，并不用于其他姿态的估计

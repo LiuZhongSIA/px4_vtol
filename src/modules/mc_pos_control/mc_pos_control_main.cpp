@@ -48,6 +48,7 @@
  *
  * @author Anton Babushkin <anton.babushkin@me.com>
  */
+// 线程运行频率150～350Hz，波动较大
 
 #include <px4_config.h>
 #include <px4_defines.h>
