@@ -315,7 +315,7 @@ void AttitudeEstimatorQ::task_main()
 	fds[0].events = POLLIN;
 
 	while (!_task_should_exit) {
-		int ret = px4_poll(fds, 1, 1000); //运行周期，最快1ms
+		int ret = px4_poll(fds, 1, 1000); //运行周期，1s超时
 
 		if (ret < 0) {
 			// Poll error, sleep and try again

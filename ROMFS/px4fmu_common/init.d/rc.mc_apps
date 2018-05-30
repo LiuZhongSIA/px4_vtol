@@ -10,7 +10,7 @@
 #
 # INAV (deprecated)
 
-param set SYS_MC_EST_GROUP 1
+param set SYS_MC_EST_GROUP 2
 
 if param compare SYS_MC_EST_GROUP 0
 then
