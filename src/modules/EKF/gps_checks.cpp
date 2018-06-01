@@ -55,18 +55,18 @@
 #define MASK_GPS_HSPD   (1<<7)
 #define MASK_GPS_VSPD   (1<<8)
 
+// 处理GPS信息，关键是进行坐标系的初始化
 bool Ekf::collect_gps(uint64_t time_usec, struct gps_message *gps)
 {
 	// If we have defined the WGS-84 position of the NED origin, run gps quality checks until they pass, then define the origins WGS-84 position using the last GPS fix
 	if (!_NED_origin_initialised) {
 		// we have good GPS data so can now set the origin's WGS-84 position
-		if (gps_is_good(gps) && !_NED_origin_initialised) {
+		if (gps_is_good(gps) && !_NED_origin_initialised) { //先进行初始化，肯定在IMU初始化之后
 			ECL_INFO("EKF gps is good - setting origin");
 			// Set the origin's WGS-84 position to the last gps fix
 			double lat = gps->lat / 1.0e7;
 			double lon = gps->lon / 1.0e7;
 			map_projection_init_timestamped(&_pos_ref, lat, lon, _time_last_imu);
-
 			// if we are already doing aiding, corect for the change in posiiton since the EKF started navigating
 			if (_control_status.flags.opt_flow || _control_status.flags.gps) {
 				double est_lat, est_lon;
@@ -97,9 +97,8 @@ bool Ekf::collect_gps(uint64_t time_usec, struct gps_message *gps)
 	}
 
 	// start collecting GPS if there is a 3D fix and the NED origin has been set
-	if (_NED_origin_initialised && gps->fix_type >= 3) {
+	if (_NED_origin_initialised && gps->fix_type >= 3) { //当前定位模式
 		return true;
-
 	} else {
 		return false;
 	}
@@ -118,19 +117,14 @@ bool Ekf::gps_is_good(struct gps_message *gps)
 {
 	// Check the fix type
 	_gps_check_fail_status.flags.fix = (gps->fix_type < 3);
-
 	// Check the number of satellites
 	_gps_check_fail_status.flags.nsats = (gps->nsats < _params.req_nsats);
-
 	// Check the geometric dilution of precision
 	_gps_check_fail_status.flags.gdop = (gps->gdop > _params.req_gdop);
-
 	// Check the reported horizontal position accuracy
 	_gps_check_fail_status.flags.hacc = (gps->eph > _params.req_hacc);
-
 	// Check the reported vertical position accuracy
 	_gps_check_fail_status.flags.vacc = (gps->epv > _params.req_vacc);
-
 	// Check the reported speed accuracy
 	_gps_check_fail_status.flags.sacc = (gps->sacc > _params.req_sacc);
 
@@ -141,8 +135,7 @@ bool Ekf::gps_is_good(struct gps_message *gps)
 	double lon = gps->lon * 1.0e-7;
 
 	if (_pos_ref.init_done) {
-		map_projection_project(&_pos_ref, lat, lon, &delta_posN, &delta_PosE);
-
+		map_projection_project(&_pos_ref, lat, lon, &delta_posN, &delta_PosE); //位移量
 	} else {
 		map_projection_init_timestamped(&_pos_ref, lat, lon, _time_last_imu);
 		_gps_alt_ref = 1e-3f * (float)gps->alt;
@@ -152,14 +145,12 @@ bool Ekf::gps_is_good(struct gps_message *gps)
 	const float filt_time_const = 10.0f;
 	float dt = fminf(fmaxf(float(_time_last_imu - _last_gps_origin_time_us) * 1e-6f, 0.001f), filt_time_const);
 	float filter_coef = dt / filt_time_const;
-
 	// Calculate the horizontal drift velocity components and limit to 10x the threshold
 	float vel_limit = 10.0f * _params.req_hdrift;
 	float velN = fminf(fmaxf(delta_posN / dt, -vel_limit), vel_limit);
 	float velE = fminf(fmaxf(delta_PosE / dt, -vel_limit), vel_limit);
-
 	// Apply a low pass filter
-	_gpsDriftVelN = velN * filter_coef + _gpsDriftVelN * (1.0f - filter_coef);
+	_gpsDriftVelN = velN * filter_coef + _gpsDriftVelN * (1.0f - filter_coef); //平面内的速度漂移
 	_gpsDriftVelE = velE * filter_coef + _gpsDriftVelE * (1.0f - filter_coef);
 
 	// Calculate the horizontal drift speed and fail if too high
@@ -167,7 +158,6 @@ bool Ekf::gps_is_good(struct gps_message *gps)
 	if (!_control_status.flags.in_air) {
 		float drift_speed = sqrtf(_gpsDriftVelN * _gpsDriftVelN + _gpsDriftVelE * _gpsDriftVelE);
 		_gps_check_fail_status.flags.hdrift = (drift_speed > _params.req_hdrift);
-
 	} else {
 		_gps_check_fail_status.flags.hdrift = false;
 	}
@@ -179,18 +169,15 @@ bool Ekf::gps_is_good(struct gps_message *gps)
 	// Calculate the vertical drift velocity and limit to 10x the threshold
 	vel_limit = 10.0f * _params.req_vdrift;
 	float velD = fminf(fmaxf((_gps_alt_ref - 1e-3f * (float)gps->alt) / dt, -vel_limit), vel_limit);
-
 	// Save the current height as the reference for next time
 	_gps_alt_ref = 1e-3f * (float)gps->alt;
-
 	// Apply a low pass filter to the vertical velocity
-	_gps_drift_velD = velD * filter_coef + _gps_drift_velD * (1.0f - filter_coef);
+	_gps_drift_velD = velD * filter_coef + _gps_drift_velD * (1.0f - filter_coef); //垂向速度漂移
 
 	// Fail if the vertical drift speed is too high
 	// This check can only be used if the vehicle is stationary during alignment
 	if (!_control_status.flags.in_air) {
 		_gps_check_fail_status.flags.vdrift = (fabsf(_gps_drift_velD) > _params.req_vdrift);
-
 	} else {
 		_gps_check_fail_status.flags.vdrift = false;
 	}
@@ -205,7 +192,6 @@ bool Ekf::gps_is_good(struct gps_message *gps)
 		_gps_velE_filt  = gps_velE * filter_coef + _gps_velE_filt  * (1.0f - filter_coef);
 		float horiz_speed = sqrtf(_gps_velN_filt * _gps_velN_filt + _gps_velE_filt * _gps_velE_filt);
 		_gps_check_fail_status.flags.hspeed = (horiz_speed > _params.req_hdrift);
-
 	} else {
 		_gps_check_fail_status.flags.hspeed = false;
 	}
@@ -238,6 +224,7 @@ bool Ekf::gps_is_good(struct gps_message *gps)
 	}
 
 	// continuous period without fail of 10 seconds required to return a healthy status
+	// 超过10s不出现GPS问题，才认为GPS可用
 	if (_time_last_imu - _last_gps_fail_us > 1e7) {
 		return true;
 	}

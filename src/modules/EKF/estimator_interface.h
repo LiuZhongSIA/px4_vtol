@@ -46,6 +46,7 @@
 #include "common.h"
 #include "mathlib.h"
 
+// EKF的父类
 using namespace estimator;
 class EstimatorInterface
 {
@@ -54,6 +55,7 @@ public:
 	EstimatorInterface();
 	~EstimatorInterface();
 
+	// 部分函数设置为0,在继承该类后，由EKF定义
 	virtual bool init(uint64_t timestamp) = 0;
 	virtual bool update() = 0;
 
@@ -137,33 +139,28 @@ public:
 	// accumulate and downsample IMU data to the EKF prediction rate
 	virtual bool collect_imu(imuSample &imu) { return true; }
 
+	// EKF2中使用下列函数向EKF填入测量数据
 	// set delta angle imu data
 	void setIMUData(uint64_t time_usec, uint64_t delta_ang_dt, uint64_t delta_vel_dt, float *delta_ang, float *delta_vel);
-
 	// set magnetometer data
 	void setMagData(uint64_t time_usec, float *data);
 	//void setMagData(uint64_t time_usec, struct magSample *mag);
-
 	// set gps data
 	void setGpsData(uint64_t time_usec, struct gps_message *gps);
-
 	// set baro data
 	void setBaroData(uint64_t time_usec, float *data);
-
 	// set airspeed data
 	void setAirspeedData(uint64_t time_usec, float *true_airspeed, float *eas2tas);
-
 	// set range data
 	void setRangeData(uint64_t time_usec, float *data);
-
 	// set optical flow data
 	void setOpticalFlowData(uint64_t time_usec, flow_message *flow);
-
 	// set external vision position and attitude data
 	void setExtVisionData(uint64_t time_usec, ext_vision_message *evdata);
 
 	// return a address to the parameters struct
 	// in order to give access to the application
+	// 获得EKF参数的句柄，EKF2中将其与地面站的参数相连接，以实现参数更新
 	parameters *getParamHandle() {return &_params;}
 
 	// set vehicle landed status data
@@ -182,7 +179,7 @@ public:
 	// return true if the local position estimate is valid
 	bool local_position_is_valid();
 
-
+	// 获得非延时时域的EKF估计的四元数
 	void copy_quaternion(float *quat)
 	{
 		for (unsigned i = 0; i < 4; i++) {
@@ -193,13 +190,13 @@ public:
 	void get_velocity(float *vel)
 	{
 		// calculate the average angular rate across the last IMU update
-		Vector3f ang_rate = _imu_sample_new.delta_ang * (1.0f/_imu_sample_new.delta_ang_dt);
+		Vector3f ang_rate = _imu_sample_new.delta_ang * (1.0f/_imu_sample_new.delta_ang_dt); //传递来的数据时陀螺积分
 		// calculate the velocity of the relative to the body origin
 		// Note % operator has been overloaded to performa cross product
 		Vector3f vel_imu_rel_body = cross_product(ang_rate , _params.imu_pos_body);
 		// rotate the relative velocty into earth frame and subtract from the EKF velocity
 		// (which is at the IMU) to get velocity of the body origin
-		Vector3f vel_earth = _output_new.vel - _R_to_earth_now * vel_imu_rel_body;
+		Vector3f vel_earth = _output_new.vel - _R_to_earth_now * vel_imu_rel_body; //EKF估计的实际上时IMU处的速度，但是我们需要的时飞机重心的速度
 		// copy to output
 		for (unsigned i = 0; i < 3; i++) {
 			vel[i] = vel_earth(i);
@@ -212,14 +209,13 @@ public:
 		Vector3f pos_offset_earth = _R_to_earth_now * _params.imu_pos_body;
 		// subtract from the EKF position (which is at the IMU) to get position at the body origin
 		for (unsigned i = 0; i < 3; i++) {
-			pos[i] = _output_new.pos(i) - pos_offset_earth(i);
+			pos[i] = _output_new.pos(i) - pos_offset_earth(i); //位置也同样，需要补偿掉IMU的位置
 		}
 	}
 	void copy_timestamp(uint64_t *time_us)
 	{
 		*time_us = _time_last_imu;
 	}
-
 	// Copy the magnetic declination that we wish to save to the EKF2_MAG_DECL parameter for the next startup
 	void copy_mag_decl_deg(float *val)
 	{
@@ -234,7 +230,6 @@ public:
 	{
 		*val = _control_status.value;
 	}
-
 	// get EKF internal fault status
 	void get_filter_fault_status(uint16_t *val)
 	{
@@ -271,7 +266,7 @@ public:
 
 protected:
 
-	parameters _params;		// filter parameters
+	parameters _params;		// filter parameters  common.h中定义了滤波器需要的所有参数
 
 	/*
 	 OBS_BUFFER_LENGTH defines how many observations (non-IMU measurements) we can buffer
@@ -280,6 +275,7 @@ protected:
 	 max freq (Hz) = (OBS_BUFFER_LENGTH - 1) / (IMU_BUFFER_LENGTH * FILTER_UPDATE_PERIOD_MS * 0.001)
 	 This can be adjusted to match the max sensor data rate plus some margin for jitter.
 	*/
+	// 非IMU传感器buffer的长度，为了实现固定周期的EKF运行，传感器数据更新频率要比EKF运行频率快
 	uint8_t _obs_buffer_length;
 	/*
 	IMU_BUFFER_LENGTH defines how many IMU samples we buffer which sets the time delay from current time to the
@@ -295,7 +291,6 @@ protected:
 	float _dt_imu_avg;	// average imu update period in s
 
 	imuSample _imu_sample_delayed;	// captures the imu sample on the delayed time horizon
-
 	// measurement samples capturing measurements on the delayed time horizon
 	magSample _mag_sample_delayed;
 	baroSample _baro_sample_delayed;
@@ -306,7 +301,7 @@ protected:
 	extVisionSample _ev_sample_delayed;
 
 	outputSample _output_sample_delayed;	// filter output on the delayed time horizon
-	outputSample _output_new;	// filter output on the non-delayed time horizon
+	outputSample _output_new;	// filter output on the non-delayed time horizon  非延时时域
 	imuSample _imu_sample_new;	// imu sample capturing the newest imu data
 	Matrix3f _R_to_earth_now; // rotation matrix from body to earth frame at current time
 
@@ -371,14 +366,12 @@ protected:
 
 	// this is the current status of the filter control modes
 	filter_control_status_u _control_status;
-
 	// this is the previous status of the filter control modes - used to detect mode transitions
 	filter_control_status_u _control_status_prev;
 
 	// perform a vector cross product
-	Vector3f cross_product(const Vector3f &vecIn1, const Vector3f &vecIn2);
+	Vector3f cross_product(const Vector3f &vecIn1, const Vector3f &vecIn2); //%也就是×
 
 	// calculate the inverse rotation matrix from a quaternion rotation
 	Matrix3f quat_to_invrotmat(const Quaternion quat);
-
 };

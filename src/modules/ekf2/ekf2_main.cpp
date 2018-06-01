@@ -336,7 +336,7 @@ Ekf2::Ekf2():
 	_flow_noise_qual_min(this, "EKF2_OF_N_MAX", false, _params->flow_noise_qual_min), //光流的测量噪声
 	_flow_qual_min(this, "EKF2_OF_QMIN", false, _params->flow_qual_min), //光流的质量度量大于该值时，光流信息才会被使用
 	_flow_innov_gate(this, "EKF2_OF_GATE", false, _params->flow_innov_gate), //光流融合的门限
-	_flow_rate_max(this, "EKF2_OF_RMAX", false, _params->flow_rate_max), //光流流速的量级大于这个值，才会使用光流信息
+	_flow_rate_max(this, "EKF2_OF_RMAX", false, _params->flow_rate_max), //光流流速的量级小于这个值，才会使用光流信息
 	_imu_pos_x(this, "EKF2_IMU_POS_X", false, _params->imu_pos_body(0)), //IMU在机体轴系的位置
 	_imu_pos_y(this, "EKF2_IMU_POS_Y", false, _params->imu_pos_body(1)),
 	_imu_pos_z(this, "EKF2_IMU_POS_Z", false, _params->imu_pos_body(2)),

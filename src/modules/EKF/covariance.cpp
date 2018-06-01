@@ -44,6 +44,7 @@
 #include <math.h>
 #include "mathlib.h"
 
+// 初始化协方差阵P
 void Ekf::initialiseCovariance()
 {
 	for (unsigned i = 0; i < _k_num_states; i++) {
@@ -58,17 +59,16 @@ void Ekf::initialiseCovariance()
 	// define the initial angle uncertainty as variances for a rotation vector
 	Vector3f rot_vec_var;
 	rot_vec_var(2) = rot_vec_var(1) = rot_vec_var(0) = sq(_params.initial_tilt_err);
-
 	// update the quaternion state covariances
 	initialiseQuatCovariances(rot_vec_var);
 
 	// velocity
-	P[4][4] = sq(fmaxf(_params.gps_vel_noise, 0.01f));
+	P[4][4] = sq(fmaxf(_params.gps_vel_noise, 0.01f)); //使用了GPS的速度测量噪声
 	P[5][5] = P[4][4];
 	P[6][6] = sq(1.5f) * P[4][4];
 
 	// position
-	P[7][7] = sq(fmaxf(_params.gps_pos_noise, 0.01f));
+	P[7][7] = sq(fmaxf(_params.gps_pos_noise, 0.01f)); //使用了GPS的位置测量噪声
 	P[8][8] = P[7][7];
 	if (_control_status.flags.rng_hgt) {
 		P[9][9] = sq(fmaxf(_params.range_noise, 0.01f));
@@ -101,7 +101,6 @@ void Ekf::initialiseCovariance()
 	// wind
 	P[22][22] = 1.0f;
 	P[23][23] = 1.0f;
-
 }
 
 void Ekf::get_pos_var(Vector3f &pos_var)
@@ -148,7 +147,7 @@ void Ekf::predictCovariance()
 	float process_noise[_k_num_states] = {};
 
 	// convert rate of change of rate gyro bias (rad/s**2) as specified by the parameter to an expected change in delta angle (rad) since the last update
-	float d_ang_bias_sig = dt * dt * math::constrain(_params.gyro_bias_p_noise, 0.0f, 1.0f);
+	float d_ang_bias_sig = dt * dt * math::constrain(_params.gyro_bias_p_noise, 0.0f, 1.0f); //_params.gyro_bias_p_noise表征的过程噪声是对与连续系统设置的
 
 	// convert rate of change of acceerometer bias (m/s**3) as specified by the parameter to an expected change in delta velocity (m/s) since the last update
 	float d_vel_bias_sig = dt * dt * math::constrain(_params.accel_bias_p_noise, 0.0f, 1.0f);
@@ -157,7 +156,6 @@ void Ekf::predictCovariance()
 	float mag_I_sig;
 	if (_control_status.flags.mag_3D && (P[16][16] + P[17][17] + P[18][18]) < 0.1f) {
 		mag_I_sig = dt * math::constrain(_params.mage_p_noise, 0.0f, 1.0f);
-
 	} else {
 		mag_I_sig = 0.0f;
 	}
@@ -166,17 +164,14 @@ void Ekf::predictCovariance()
 	float mag_B_sig;
 	if (_control_status.flags.mag_3D && (P[19][19] + P[20][20] + P[21][21]) < 0.1f) {
 		mag_B_sig = dt * math::constrain(_params.magb_p_noise, 0.0f, 1.0f);
-
 	} else {
 		mag_B_sig = 0.0f;
 	}
 
 	float wind_vel_sig;
-
 	// Don't continue to grow wind velocity state variances if they are becoming too large or we are not using wind velocity states as this can make the covariance matrix badly conditioned
 	if (_control_status.flags.wind && (P[22][22] + P[23][23]) < 1000.0f) {
 		wind_vel_sig = dt * math::constrain(_params.wind_vel_p_noise, 0.0f, 1.0f);
-
 	} else {
 		wind_vel_sig = 0.0f;
 	}
@@ -199,6 +194,7 @@ void Ekf::predictCovariance()
 
 	// assign IMU noise variances
 	// inputs to the system are 3 delta angles and 3 delta velocities
+	// 方程的输入噪声，作为过程噪声处理
 	float daxVar, dayVar, dazVar;
 	float dvxVar, dvyVar, dvzVar;
 	float gyro_noise = math::constrain(_params.gyro_noise, 0.0f, 1.0f);
@@ -366,12 +362,14 @@ void Ekf::predictCovariance()
 
 	// add process noise that is not from the IMU
 	for (unsigned i = 0; i <= 12; i++) {
-		nextP[i][i] += process_noise[i];
+		nextP[i][i] += process_noise[i]; //过程噪声协方差阵
 	}
+	
+	// 根据实际的解算设置，设置某些状态的协方差阵不要更新
+	// ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
 
 	// Don't calculate these covariance terms if IMU delta vlocity bias estimation is inhibited
-	if (!(_params.fusion_mode & MASK_INHIBIT_ACC_BIAS)) {
-
+	if (!(_params.fusion_mode & MASK_INHIBIT_ACC_BIAS)) { //如果需要估计加速度计偏差，否则就不更新P
 		// calculate variances and upper diagonal covariances for IMU delta velocity bias states
 		nextP[0][13] = P[0][13] + P[1][13]*SF[9] + P[2][13]*SF[11] + P[3][13]*SF[10] + P[10][13]*SF[14] + P[11][13]*SF[15] + P[12][13]*SPP[10];
 		nextP[1][13] = P[1][13] + P[0][13]*SF[8] + P[2][13]*SF[7] + P[3][13]*SF[11] - P[12][13]*SF[15] + P[11][13]*SPP[10] - (P[10][13]*q0)/2;
@@ -423,7 +421,6 @@ void Ekf::predictCovariance()
 		for (unsigned i = 13; i <= 15; i++) {
 			nextP[i][i] += process_noise[i];
 		}
-
 	}
 
 	// Don't do covariance prediction on magnetic field states unless we are using 3-axis fusion
@@ -431,7 +428,7 @@ void Ekf::predictCovariance()
 		// Check if we have just transitioned into 3-axis fusion and set the state variances
 		if (!_control_status_prev.flags.mag_3D) {
 			for (uint8_t index = 16; index <= 21; index++) {
-				P[index][index] = sq(fmaxf(_params.mag_noise, 0.001f));
+				P[index][index] = sq(fmaxf(_params.mag_noise, 0.001f)); //进行初始化
 			}
 		}
 
@@ -558,7 +555,6 @@ void Ekf::predictCovariance()
 		for (unsigned i = 16; i <= 21; i++) {
 			nextP[i][i] += process_noise[i];
 		}
-
 	}
 
 	// Don't do covariance prediction on wind states unless we are using them
@@ -617,8 +613,10 @@ void Ekf::predictCovariance()
 		for (unsigned i = 22; i <= 23; i++) {
 			nextP[i][i] += process_noise[i];
 		}
-
 	}
+
+	// ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
+	// 根据实际的解算设置，设置某些状态的协方差阵不要更新
 
 	// stop position covariance growth if our total position variance reaches 100m
 	// this can happen if we lose gps for some time
@@ -637,18 +635,16 @@ void Ekf::predictCovariance()
 			P[row][column] = P[column][row] = nextP[column][row];
 		}
 	}
-
 	// copy variances (diagonals)
 	for (unsigned i = 0; i < _k_num_states; i++) {
 		P[i][i] = nextP[i][i];
 	}
-
 	// fix gross errors in the covariance matrix and ensure rows and
 	// columns for un-used states are zero
 	fixCovarianceErrors();
-
 }
 
+// 限制协方差阵的大小
 void Ekf::fixCovarianceErrors()
 {
 	// NOTE: This limiting is a last resort and should not be relied on
@@ -670,30 +666,26 @@ void Ekf::fixCovarianceErrors()
 		// quaternion states
 		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[0]);
 	}
-
 	for (int i = 4; i <= 6; i++) {
 		// NED velocity states
 		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[1]);
 	}
-
 	for (int i = 7; i <= 9; i++) {
 		// NED position states
 		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[2]);
 	}
-
 	for (int i = 10; i <= 12; i++) {
 		// gyro bias states
 		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[3]);
 	}
-
 	// force symmetry on the quaternion, velocity and positon state covariances
 	makeSymmetrical(P,0,12);
 
 	// the following states are optional and are deactivaed when not required
 	// by ensuring the corresponding covariance matrix values are kept at zero
-
 	// accelerometer bias states
-	if ((_params.fusion_mode & MASK_INHIBIT_ACC_BIAS)) {
+
+	if ((_params.fusion_mode & MASK_INHIBIT_ACC_BIAS)) { //如果禁止IMU偏差估计
 		zeroRows(P,13,15);
 		zeroCols(P,13,15);
 	} else {
@@ -740,11 +732,9 @@ void Ekf::resetMagCovariance()
 	// set the quaternion covariance terms to zero
 	zeroRows(P,0,3);
 	zeroCols(P,0,3);
-
 	// set the magnetic field covariance terms to zero
 	zeroRows(P,16,21);
 	zeroCols(P,16,21);
-
 	// set the field state variance to the observation variance
 	for (uint8_t rc_index=16; rc_index <= 21; rc_index ++) {
 		P[rc_index][rc_index] = sq(_params.mag_noise);
@@ -756,13 +746,12 @@ void Ekf::resetWindCovariance()
 	// set the wind  covariance terms to zero
 	zeroRows(P,22,23);
 	zeroCols(P,22,23);
-
 	if (_tas_data_ready && (_imu_sample_delayed.time_us - _airspeed_sample_delayed.time_us < 5e5)) {
 		// Use airspeed and zer sideslip assumption to set initial covariance values for wind states
 
 		// calculate the wind speed and bearing
-		float spd = sqrtf(sq(_state.wind_vel(0))+sq(_state.wind_vel(1)));
-		float yaw = atan2f(_state.wind_vel(1),_state.wind_vel(0));
+		float spd = sqrtf(sq(_state.wind_vel(0))+sq(_state.wind_vel(1))); //风速
+		float yaw = atan2f(_state.wind_vel(1),_state.wind_vel(0)); //风向
 
 		// calculate the uncertainty in wind speed and direction using the uncertainty in airspeed and sideslip angle
 		// used to calculate the initial wind speed
@@ -780,16 +769,12 @@ void Ekf::resetWindCovariance()
 		P[22][23] = - R_yaw*sin_cos_yaw*spd_2 + R_spd*sin_cos_yaw;
 		P[23][22] = P[22][23];
 		P[23][23] = R_yaw*spd_2*cos_yaw_2 + R_spd*sin_yaw_2;
-
 		// Now add the variance due to uncertainty in vehicle velocity that was used to calculate the initial wind speed
 		P[22][22] += P[4][4];
 		P[23][23] += P[5][5];
-
 	} else {
 		// without airspeed, start with a small initial uncertainty to improve the initial estimate
 		P[22][22] = sq(5.0f);
 		P[23][23] = sq(5.0f);
-
 	}
-
 }

@@ -704,6 +704,7 @@ bool AttitudeEstimatorQ::update(float dt)
 		(_q(0) * _q(0) - _q(1) * _q(1) - _q(2) * _q(2) + _q(3) * _q(3))
 	);
 	corr += (k % (_accel - _pos_acc).normalized()) * _w_accel; //(_accel - _pos_acc)计算出的是重力的作用的负
+	// 到目前为止，corr都是旋转矢量的大小
 
 	// Gyro bias estimation
 	if (spinRate < 0.175f) {
@@ -715,9 +716,9 @@ bool AttitudeEstimatorQ::update(float dt)
 
 	_rates = _gyro + _gyro_bias;
 	// Feed forward gyro
-	corr += _rates; //corr中实际上存放的是旋转矢量，因为_gyro中存放的也不是pqr，而是角度的增量
+	corr += _rates; //来自pqr的前馈
 	// Apply correction to state
-	_q += _q.derivative(corr) * dt;
+	_q += _q.derivative(corr) * dt; //derivative(corr)求得时corr的方向
 	// Normalize quaternion
 	_q.normalize();
 

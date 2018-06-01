@@ -43,64 +43,52 @@
 #include "estimator_interface.h"
 #include "geo.h"
 
-class Ekf : public EstimatorInterface
+class Ekf : public EstimatorInterface //继承，EstimatorInterface提供一些交换需要的函数
 {
 public:
-
 	Ekf();
 	~Ekf();
 
 	// initialise variables to sane values (also interface class)
 	bool init(uint64_t timestamp);
-
 	// should be called every time new data is pushed into the filter
+	// 每次接收到新数据都要传递给滤波器，并进行状态估计
 	bool update();
 
+	// innovation: 测量值新息，例如 修正偏差、观测噪声协方差阵对角线元素
 	// gets the innovations of velocity and position measurements
 	// 0-2 vel, 3-5 pos
 	void get_vel_pos_innov(float vel_pos_innov[6]);
-
 	// gets the innovations of the earth magnetic field measurements
 	void get_mag_innov(float mag_innov[3]);
-
 	// gets the innovations of the heading measurement
 	void get_heading_innov(float *heading_innov);
-
 	// gets the innovation variances of velocity and position measurements
 	// 0-2 vel, 3-5 pos
 	void get_vel_pos_innov_var(float vel_pos_innov_var[6]);
-
 	// gets the innovation variances of the earth magnetic field measurements
 	void get_mag_innov_var(float mag_innov_var[3]);
-
 	// gets the innovations of airspeed measurement
 	void get_airspeed_innov(float *airspeed_innov);
-
 	// gets the innovation variance of the airspeed measurement
 	void get_airspeed_innov_var(float *airspeed_innov_var);
-
 	// gets the innovations of synthetic sideslip measurement
  	void get_beta_innov(float *beta_innov);
-
  	// gets the innovation variance of the synthetic sideslip measurement
  	void get_beta_innov_var(float *beta_innov_var);
-
 	// gets the innovation variance of the heading measurement
 	void get_heading_innov_var(float *heading_innov_var);
-
 	// gets the innovation variance of the flow measurement
 	void get_flow_innov_var(float flow_innov_var[2]);
-
 	// gets the innovation of the flow measurement
 	void get_flow_innov(float flow_innov[2]);
-
 	// gets the innovation variance of the HAGL measurement
 	void get_hagl_innov_var(float *hagl_innov_var);
-
 	// gets the innovation of the HAGL measurement
 	void get_hagl_innov(float *hagl_innov);
 
 	// get the state vector at the delayed time horizon
+	                            // 延迟时间范围
 	void get_state_delayed(float *state);
 
 	// get the wind velocity in m/s
@@ -114,20 +102,19 @@ public:
 	bool collect_imu(imuSample &imu);
 
 	// get the ekf WGS-84 origin position and height and the system time it was last set
+	// 初始化的原点
 	void get_ekf_origin(uint64_t *origin_time, map_projection_reference_s *origin_pos, float *origin_alt);
 
 	// get the 1-sigma horizontal and vertical position uncertainty of the ekf WGS-84 position
 	void get_ekf_accuracy(float *ekf_eph, float *ekf_epv, bool *dead_reckoning);
-
 	void get_vel_var(Vector3f &vel_var);
-
 	void get_pos_var(Vector3f &pos_var);
 
 	// return an array containing the output predictor angular, velocity and position tracking
 	// error magnitudes (rad), (m/s), (m)
 	void get_output_tracking_error(float error[3]);
 
-	/*
+	/*                 IMU振动指标
 	Returns  following IMU vibration metrics in the following array locations
 	0 : Gyro delta angle coning metric = filtered length of (delta_angle x prev_delta_angle)
 	1 : Gyro high frequency vibe = filtered length of (delta_angle - prev_delta_angle)
@@ -138,7 +125,7 @@ public:
 	// return true if the global position estimate is valid
 	bool global_position_is_valid();
 
-	// return true if the etimate is valid
+	// return true if the etimate is valid       相对于NED原点的地形垂直位置
 	// return the estimated terrain vertical position relative to the NED origin
 	bool get_terrain_vert_pos(float *ret);
 
@@ -151,24 +138,21 @@ public:
 	// get GPS check status
 	void get_gps_check_status(uint16_t *_gps_check_fail_status);
 
+	// 复位修改量以及复位次数
 	// return the amount the local vertical position changed in the last reset and the number of reset events
 	void get_posD_reset(float *delta, uint8_t *counter) {*delta = _state_reset_status.posD_change; *counter = _state_reset_status.posD_counter;}
-
 	// return the amount the local vertical velocity changed in the last reset and the number of reset events
 	void get_velD_reset(float *delta, uint8_t *counter) {*delta = _state_reset_status.velD_change; *counter = _state_reset_status.velD_counter;}
-
 	// return the amount the local horizontal position changed in the last reset and the number of reset events
 	void get_posNE_reset(float delta[2], uint8_t *counter){
 		memcpy(delta, &_state_reset_status.posNE_change._data[0], sizeof(_state_reset_status.posNE_change._data));
 		*counter = _state_reset_status.posNE_counter;
 	}
-
 	// return the amount the local horizontal velocity changed in the last reset and the number of reset events
 	void get_velNE_reset(float delta[2], uint8_t *counter) {
 		memcpy(delta, &_state_reset_status.velNE_change._data[0], sizeof(_state_reset_status.velNE_change._data));
 		*counter = _state_reset_status.velNE_counter;
 	}
-
 	// return the amount the quaternion has changed in the last reset and the number of reset events
 	void get_quat_reset(float delta_quat[4], uint8_t *counter)
 	{
@@ -181,9 +165,11 @@ public:
 	// Innovation Test Ratios - these are the ratio of the innovation to the acceptance threshold.
 	// A value > 1 indicates that the sensor measurement has exceeded the maximum acceptable level and has been rejected by the EKF
 	// Where a measurement type is a vector quantity, eg magnetoemter, GPS position, etc, the maximum value is returned.
+	// EKF测量新息的一致性检查
 	void get_innovation_test_status(uint16_t *status, float *mag, float *vel, float *pos, float *hgt, float *tas, float *hagl);
 
 	// return a bitmask integer that describes which state estimates can be used for flight control
+	// 哪个状态估计可用于控制
 	void get_ekf_soln_status(uint16_t *status);
 
 private:
@@ -194,6 +180,7 @@ private:
 
 	// reset event monitoring
 	// structure containing velocity, position, height and yaw reset information
+	// 复位次数与复位后的变化量
 	struct {
 		uint8_t velNE_counter;	// number of horizontal position reset events (allow to wrap if count exceeds 255)
 		uint8_t velD_counter;	// number of vertical velocity reset events (allow to wrap if count exceeds 255)
@@ -210,8 +197,9 @@ private:
 	float _dt_ekf_avg;		// average update rate of the ekf
 
 	stateSample _state;		// state struct of the ekf running at the delayed time horizon
+	                        // 24个状态
 
-	bool _filter_initialised;	// true when the EKF sttes and covariances been initialised
+	bool _filter_initialised;	// true when the EKF states and covariances been initialised
 	bool _earth_rate_initialised;	// true when we know the earth rotatin rate (requires GPS)
 
 	bool _fuse_height;		// baro height data should be fused
@@ -244,24 +232,18 @@ private:
 
 	matrix::Dcm<float> _R_to_earth;	// transformation matrix from body frame to earth frame from last EKF predition
 
-	float P[_k_num_states][_k_num_states];	// state covariance matrix
+	float P[_k_num_states][_k_num_states];	// state covariance matrix 24×24
 
 	float _vel_pos_innov[6];	// innovations: 0-2 vel,  3-5 pos
 	float _vel_pos_innov_var[6];	// innovation variances: 0-2 vel, 3-5 pos
-
 	float _mag_innov[3];		// earth magnetic field innovations
 	float _mag_innov_var[3];	// earth magnetic field innovation variance
-
 	float _airspeed_innov;		// airspeed measurement innovation
 	float _airspeed_innov_var;	// airspeed measurement innovation variance
-
 	float _beta_innov;		// synthetic sideslip measurement innovation
  	float _beta_innov_var;	// synthetic sideslip measurement innovation variance
-
 	float _heading_innov;		// heading measurement innovation
 	float _heading_innov_var;	// heading measurement innovation variance
-
-	// optical flow processing
 	float _flow_innov[2];		// flow measurement innovation
 	float _flow_innov_var[2];	// flow innovation variance
 	Vector3f _flow_gyro_bias;	// bias errors in optical flow sensor rate gyro outputs
@@ -320,73 +302,59 @@ private:
 	bool _gps_hgt_faulty;		// true if valid gps height data is unavailable for use
 	bool _rng_hgt_faulty;		// true if valid rnage finder height data is unavailable for use
 	int _primary_hgt_source;	// priary source of height data set at initialisation
-
 	// imu fault status
 	uint64_t _time_bad_vert_accel;	// last time a bad vertical accel was detected (usec)
 
 	// update the real time complementary filter states. This includes the prediction
 	// and the correction step
+	// 更新“实时”互补滤波器状态
 	void calculateOutputStates();
-
 	// initialise filter states of both the delayed ekf and the real time complementary filter
+	// 初始化“延时”EKF和“实时”互补滤波器
 	bool initialiseFilter(void);
-
 	// initialise ekf covariance matrix
 	void initialiseCovariance();
-
 	// predict ekf state
 	void predictState();
-
 	// predict ekf covariance
 	void predictCovariance();
 
 	// ekf sequential fusion of magnetometer measurements
 	void fuseMag();
-
 	// fuse the first euler angle from either a 321 or 312 rotation sequence as the observation (currently measures yaw using the magnetometer)
 	void fuseHeading();
-
 	// fuse magnetometer declination measurement
 	void fuseDeclination();
-
 	// fuse airspeed measurement
 	void fuseAirspeed();
-
 	// fuse synthetic zero sideslip measurement
  	void fuseSideslip();
-
 	// fuse velocity and position measurements (also barometer height)
 	void fuseVelPosHeight();
+	// fuse optical flow line of sight rate measurements
+	void fuseOptFlow();
 
 	// reset velocity states of the ekf
 	bool resetVelocity();
 
-	// fuse optical flow line of sight rate measurements
-	void fuseOptFlow();
-
 	// calculate optical flow bias errors
 	void calcOptFlowBias();
 
-	// initialise the terrain vertical position estimator
+	// initialise the terrain vertical position estimator  地形垂直位置估计器
 	// return true if the initialisation is successful
 	bool initHagl();
-
 	// predict the terrain vertical position state and variance
 	void predictHagl();
-
 	// update the terrain vertical position estimate using a height above ground measurement from the range finder
-	void fuseHagl();
+	void fuseHagl(); //只能用距离传感器更新
 
 	// reset the heading and magnetic field states using the declination and magnetometer measurements
 	// return true if successful
 	bool resetMagHeading(Vector3f &mag_init);
-
 	// calculate the magnetic declination to be used by the alignment and fusion processing
 	void calcMagDeclination();
-
 	// reset position states of the ekf (only vertical position)
 	bool resetPosition();
-
 	// reset height state of the ekf
 	void resetHeight();
 
@@ -402,7 +370,7 @@ private:
 	// constrain the ekf states
 	void constrainStates();
 
-	// generic function which will perform a fusion step given a kalman gain K
+	// generic(一般的) function which will perform a fusion step given a kalman gain K
 	// and a scalar innovation value
 	void fuse(float *K, float innovation);
 
@@ -414,31 +382,22 @@ private:
 
 	// Control the filter fusion modes
 	void controlFusionModes();
-
 	// control fusion of external vision observations
 	void controlExternalVisionFusion();
-
 	// control fusion of optical flow observtions
 	void controlOpticalFlowFusion();
-
 	// control fusion of GPS observations
 	void controlGpsFusion();
-
 	// control fusion of magnetometer observations
 	void controlMagFusion();
-
 	// control fusion of range finder observations
 	void controlRangeFinderFusion();
-
 	// control fusion of air data observations
 	void controlAirDataFusion();
-
 	// control fusion of synthetic sideslip observations
 	void controlBetaFusion();
-
 	// control fusion of pressure altitude observations
 	void controlBaroFusion();
-
 	// control fusion of velocity and position observations
 	void controlVelPosFusion();
 
@@ -453,7 +412,6 @@ private:
 
 	// zero the specified range of rows in the state covariance matrix
 	void zeroRows(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last);
-
 	// zero the specified range of columns in the state covariance matrix
 	void zeroCols(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last);
 
@@ -462,17 +420,14 @@ private:
 
 	// rotate quaternion covariances into variances for an equivalent rotation vector
 	Vector3f calcRotVecVariances();
-
 	// initialise the quaternion covariances using rotation vector variances
 	void initialiseQuatCovariances(Vector3f &rot_vec_var);
 
 	// perform a limited reset of the magnetic field state covariances
 	void resetMagCovariance();
-
 	// perform a limited reset of the wind state covariances
 	void resetWindCovariance();
 
 	// perform a reset of the wind states
 	void resetWindStates();
-
 };

@@ -57,10 +57,10 @@
 #define ISFINITE(x) __builtin_isfinite(x)
 #endif
 
-
 const float Ekf::_k_earth_rate = 0.000072921f;
 const float Ekf::_gravity_mss = 9.80665f;
 
+// 构造函数
 Ekf::Ekf():
 	_filter_initialised(false),
 	_earth_rate_initialised(false),
@@ -143,6 +143,7 @@ Ekf::Ekf():
 	_state_reset_status = {};
 }
 
+// 析构函数
 Ekf::~Ekf()
 {
 }
@@ -194,12 +195,12 @@ bool Ekf::init(uint64_t timestamp)
 	return ret;
 }
 
+// EKF2中直接调用该函数
 bool Ekf::update()
 {
-
 	if (!_filter_initialised) {
-		_filter_initialised = initialiseFilter();
-
+		_filter_initialised = initialiseFilter(); //初始化“延时”EKF和“实时”互补滤波器
+		                                          //进行初始状态和协方差阵的赋值
 		if (!_filter_initialised) {
 			return false;
 		}
@@ -207,24 +208,18 @@ bool Ekf::update()
 
 	// Only run the filter if IMU data in the buffer has been updated
 	if (_imu_updated) {
-
 		// perform state and covariance prediction for the main filter
 		predictState();
 		predictCovariance();
-
 		// perform state and variance prediction for the terrain estimator
 		if (!_terrain_initialised) {
 			_terrain_initialised = initHagl();
-
 		} else {
 			predictHagl();
 		}
-
 		// control fusion of observation data
 		controlFusionModes();
-
 	}
-
 	// the output observer always runs
 	calculateOutputStates();
 
@@ -232,26 +227,27 @@ bool Ekf::update()
 	if (!ISFINITE(_state.quat_nominal(0)) || !ISFINITE(_output_new.quat_nominal(0))) {
 		return false;
 	}
-
 	// We don't have valid data to output until tilt and yaw alignment is complete
 	if (_control_status.flags.tilt_align && _control_status.flags.yaw_align) {
 		return true;
-
 	} else {
 		return false;
 	}
 }
 
+// 初始化“延时”EKF和“实时”互补滤波器，进行估计状态、协方差阵、输出状态的初始化
+// 传感器的初始化已经进行，但是未必完成
 bool Ekf::initialiseFilter(void)
 {
 	// Keep accumulating measurements until we have a minimum of 10 samples for the required sensors
+	// 持续积累测量数据
 
 	// Sum the IMU delta angle measurements
 	imuSample imu_init = _imu_buffer.get_newest();
-	_delVel_sum += imu_init.delta_vel;
+	_delVel_sum += imu_init.delta_vel; //加速度积分值，速度变化量
 
 	// Sum the magnetometer measurements
-	if (_mag_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_mag_sample_delayed)) {
+	if (_mag_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_mag_sample_delayed)) { //找到比IMU采样迟，但是相对较新的磁罗盘数据
 		if ((_mag_counter == 0) && (_mag_sample_delayed.time_us != 0)) {
 			// initialise the counter when we start getting data from the buffer
 			_mag_counter = 1;
@@ -263,7 +259,7 @@ bool Ekf::initialiseFilter(void)
 				// initialise filter states
 				_mag_filt_state = _mag_sample_delayed.mag;
 			} else if (_mag_counter > (uint8_t)(_obs_buffer_length + 1)) {
-				// noise filter the data
+				// noise filter the data 平滑去噪
 				_mag_filt_state = _mag_filt_state * 0.9f + _mag_sample_delayed.mag * 0.1f;
 			}
 		}
@@ -275,7 +271,7 @@ bool Ekf::initialiseFilter(void)
 			// initialise the counter
 			_ev_counter = 1;
 			// set the height fusion mode to use external vision data when we start getting valid data from the buffer
-			if (_primary_hgt_source == VDIST_SENSOR_EV) {
+			if (_primary_hgt_source == VDIST_SENSOR_EV) { //使用视觉高度
 				_control_status.flags.baro_hgt = false;
 				_control_status.flags.gps_hgt = false;
 				_control_status.flags.rng_hgt = false;
@@ -291,9 +287,8 @@ bool Ekf::initialiseFilter(void)
 	if (_hgt_counter == 0) {
 		_primary_hgt_source = _params.vdist_sensor_type;
 	}
-
 	// accumulate enough height measurements to be confident in the qulaity of the data
-	if (_primary_hgt_source == VDIST_SENSOR_RANGE) {
+	if (_primary_hgt_source == VDIST_SENSOR_RANGE) { //使用测距仪高度
 		if (_range_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_range_sample_delayed)) {
 			if ((_hgt_counter == 0) && (_range_sample_delayed.time_us != 0)) {
 				// initialise the counter height fusion method when we start getting data from the buffer
@@ -315,10 +310,10 @@ bool Ekf::initialiseFilter(void)
 				}
 			}
 		}
-
 	} else if (_primary_hgt_source == VDIST_SENSOR_BARO || _primary_hgt_source == VDIST_SENSOR_GPS) {
 		// if the user parameter specifies use of GPS for height we use baro height initially and switch to GPS
 		// later when it passes checks.
+		// 下面考虑的时气压计高度补偿，如果实际使用的是GPS，后面会进行切换
 		if (_baro_buffer.pop_first_older_than(_imu_sample_delayed.time_us, &_baro_sample_delayed)) {
 			if ((_hgt_counter == 0) && (_baro_sample_delayed.time_us != 0)) {
 				// initialise the counter and height fusion method when we start getting data from the buffer
@@ -339,7 +334,6 @@ bool Ekf::initialiseFilter(void)
 				}
 			}
 		}
-
 	} else if (_primary_hgt_source == VDIST_SENSOR_EV) {
 		// do nothing becasue vision data is checked elsewhere
 	} else {
@@ -352,13 +346,12 @@ bool Ekf::initialiseFilter(void)
 	bool ev_count_fail = ((_params.fusion_mode & MASK_USE_EVPOS) || (_params.fusion_mode & MASK_USE_EVYAW)) && (_ev_counter <= 2*_obs_buffer_length);
 	if (hgt_count_fail || mag_count_fail || ev_count_fail) {
 		return false;
-
 	} else {
 		// reset variables that are shared with post alignment GPS checks
 		_gps_drift_velD = 0.0f;
 		_gps_alt_ref = 0.0f;
 
-		// Zero all of the states
+		// Zero all of the states  状态值的初始化
 		_state.vel.setZero();
 		_state.pos.setZero();
 		_state.gyro_bias.setZero();
@@ -370,16 +363,13 @@ bool Ekf::initialiseFilter(void)
 		// get initial roll and pitch estimate from delta velocity vector, assuming vehicle is static
 		float pitch = 0.0f;
 		float roll = 0.0f;
-
 		if (_delVel_sum.norm() > 0.001f) {
 			_delVel_sum.normalize();
-			pitch = asinf(_delVel_sum(0));
+			pitch = asinf(_delVel_sum(0)); //四元数初始化用的是加速度积分？？？
 			roll = atan2f(-_delVel_sum(1), -_delVel_sum(2));
-
 		} else {
 			return false;
 		}
-
 		// calculate initial tilt alignment
 		matrix::Euler<float> euler_init(roll, pitch, 0.0f);
 		_state.quat_nominal = Quaternion(euler_init);
@@ -392,7 +382,7 @@ bool Ekf::initialiseFilter(void)
 		Vector3f mag_init = _mag_filt_state;
 
 		// calculate the initial magnetic field and yaw alignment
-		_control_status.flags.yaw_align = resetMagHeading(mag_init);
+		_control_status.flags.yaw_align = resetMagHeading(mag_init); //重置航向信息 in ekf_helper
 
 		if (_control_status.flags.rng_hgt) {
 			// if we are using the range finder as the primary source, then calculate the baro height at origin so  we can use baro as a backup
@@ -401,23 +391,20 @@ bool Ekf::initialiseFilter(void)
 			_baro_hgt_offset = baro_newest.hgt;
 			_state.pos(2) = -math::max(_rng_filt_state * _R_to_earth(2, 2),_params.rng_gnd_clearance);
 			ECL_INFO("EKF using range finder height - commencing alignment");
-
 		} else if (_control_status.flags.ev_hgt) {
 			// if we are using external vision data for height, then the vertical position state needs to be reset
 			// because the initialisation position is not the zero datum
-			resetHeight();
+			resetHeight(); //重置高度 in ekf_helper
 			ECL_INFO("EKF using vision height - commencing alignment");
-
 		} else if (_control_status.flags.baro_hgt){
 			ECL_INFO("EKF using pressure height - commencing alignment");
-
 		}
 
 		// initialise the state covariance matrix
-		initialiseCovariance();
+		initialiseCovariance(); //in covariance
 
 		// try to initialise the terrain estimator
-		_terrain_initialised = initHagl();
+		_terrain_initialised = initHagl(); //in terrain_estimator
 
 		// reset the essential fusion timeout counters
 		_time_last_hgt_fuse = _time_last_imu;
@@ -433,57 +420,54 @@ bool Ekf::initialiseFilter(void)
 	}
 }
 
+// EKF状态预测更新
 void Ekf::predictState()
 {
 	if (!_earth_rate_initialised) {
 		if (_NED_origin_initialised) {
-			calcEarthRateNED(_earth_rate_NED, _pos_ref.lat_rad);
+			calcEarthRateNED(_earth_rate_NED, _pos_ref.lat_rad); //地球的自传速度
 			_earth_rate_initialised = true;
 		}
 	}
 
 	// apply imu bias corrections
-	Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _state.gyro_bias;
+	Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _state.gyro_bias; //减去上一次状态估计得到的偏差
 	Vector3f corrected_delta_vel = _imu_sample_delayed.delta_vel - _state.accel_bias;
 
 	// correct delta angles for earth rotation rate
 	corrected_delta_ang -= -_R_to_earth.transpose() * _earth_rate_NED * _imu_sample_delayed.delta_ang_dt;
-
 	// convert the delta angle to a delta quaternion
 	Quaternion dq;
-	dq.from_axis_angle(corrected_delta_ang);
-
+	dq.from_axis_angle(corrected_delta_ang); //旋转矢量所对应的四元数
 	// rotate the previous quaternion by the delta quaternion using a quaternion multiplication
-	_state.quat_nominal = dq * _state.quat_nominal;
-
+	_state.quat_nominal = dq * _state.quat_nominal; //四元数的差乘就是旋转！！！
 	// quaternions must be normalised whenever they are modified
-	_state.quat_nominal.normalize();
+	_state.quat_nominal.normalize(); //！！！四元数预估值
 
 	// save the previous value of velocity so we can use trapzoidal integration
 	Vector3f vel_last = _state.vel;
-
 	// update transformation matrix from body to world frame
 	_R_to_earth = quat_to_invrotmat(_state.quat_nominal);
-
 	// calculate the increment in velocity using the current orientation
-	_state.vel += _R_to_earth * corrected_delta_vel;
-
+	_state.vel += _R_to_earth * corrected_delta_vel; //！！！速度预估值
 	// compensate for acceleration due to gravity
-	_state.vel(2) += _gravity_mss * _imu_sample_delayed.delta_vel_dt;
+	// _imu_sample_delayed时IMU buffer 中最老的数据
+	_state.vel(2) += _gravity_mss * _imu_sample_delayed.delta_vel_dt; //考虑重力作用
 
 	// predict position states via trapezoidal integration of velocity
-	_state.pos += (vel_last + _state.vel) * _imu_sample_delayed.delta_vel_dt * 0.5f;
+	_state.pos += (vel_last + _state.vel) * _imu_sample_delayed.delta_vel_dt * 0.5f; //！！！位置预估值
 
-	constrainStates();
+	// 使用了陀螺仪进行了姿态预估，使用了加速度计进行了位置预估
+	constrainStates(); //对状态预估值进行显示，其他没有更新预估值的状态就是要保持原来的状态
 
 	// calculate an average filter update time
 	float input = 0.5f*(_imu_sample_delayed.delta_vel_dt + _imu_sample_delayed.delta_ang_dt);
-
 	// filter and limit input between -50% and +100% of nominal value
 	input = math::constrain(input,0.0005f * (float)(FILTER_UPDATE_PERIOD_MS),0.002f * (float)(FILTER_UPDATE_PERIOD_MS));
 	_dt_ekf_avg = 0.99f * _dt_ekf_avg + 0.01f * input;
 }
 
+// 对要积累的IMU数据进行预处理
 bool Ekf::collect_imu(imuSample &imu)
 {
 	// accumulate and downsample IMU data across a period FILTER_UPDATE_PERIOD_MS long
@@ -494,7 +478,6 @@ bool Ekf::collect_imu(imuSample &imu)
 	_imu_sample_new.delta_ang_dt	= imu.delta_ang_dt;
 	_imu_sample_new.delta_vel_dt	= imu.delta_vel_dt;
 	_imu_sample_new.time_us		= imu.time_us;
-
 	// accumulate the time deltas
 	_imu_down_sampled.delta_ang_dt += imu.delta_ang_dt;
 	_imu_down_sampled.delta_vel_dt += imu.delta_vel_dt;
@@ -502,14 +485,14 @@ bool Ekf::collect_imu(imuSample &imu)
 	// use a quaternion to accumulate delta angle data
 	// this quaternion represents the rotation from the start to end of the accumulation period
 	Quaternion delta_q;
-	delta_q.rotate(imu.delta_ang);
+	delta_q.rotate(imu.delta_ang); //通过旋转的角度计算出等效的四元数
 	_q_down_sampled =  _q_down_sampled * delta_q;
-	_q_down_sampled.normalize();
+	_q_down_sampled.normalize(); //旋转后的四元数
+	// _q_down_sampled的作用是啥？
 
 	// rotate the accumulated delta velocity data forward each time so it is always in the updated rotation frame
-	matrix::Dcm<float> delta_R(delta_q.inversed());
+	matrix::Dcm<float> delta_R(delta_q.inversed()); //旋转矩阵
 	_imu_down_sampled.delta_vel = delta_R * _imu_down_sampled.delta_vel;
-
 	// accumulate the most recent delta velocity data at the updated rotation frame
 	// assume effective sample time is halfway between the previous and current rotation frame
 	_imu_down_sampled.delta_vel += (_imu_sample_new.delta_vel + delta_R * _imu_sample_new.delta_vel) * 0.5f;
@@ -550,18 +533,19 @@ bool Ekf::collect_imu(imuSample &imu)
  * “Recursive Attitude Estimation in the Presence of Multi-rate and Multi-delay Vector Measurements”
  * A Khosravian, J Trumpf, R Mahony, T Hamel, Australian National University
 */
+// 非延时域的系统状态，作为姿态、位置、速度的估计值
 void Ekf::calculateOutputStates()
 {
 	// use latest IMU data
 	imuSample imu_new = _imu_sample_new;
 
+	// 从测量中消除偏差量的影响，注意时间间隔
 	// correct delta angles for bias offsets and scale factors
 	Vector3f delta_angle;
 	float dt_scale_correction = _dt_imu_avg/_dt_ekf_avg;
 	delta_angle(0) = _imu_sample_new.delta_ang(0) - _state.gyro_bias(0)*dt_scale_correction;
 	delta_angle(1) = _imu_sample_new.delta_ang(1) - _state.gyro_bias(1)*dt_scale_correction;
 	delta_angle(2) = _imu_sample_new.delta_ang(2) - _state.gyro_bias(2)*dt_scale_correction;
-
 	// correct delta velocity for bias offsets
 	Vector3f delta_vel = _imu_sample_new.delta_vel - _state.accel_bias*dt_scale_correction;
 

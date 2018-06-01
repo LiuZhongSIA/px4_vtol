@@ -86,86 +86,78 @@ EstimatorInterface::~EstimatorInterface()
 }
 
 // Accumulate imu data and store to buffer at desired rate
-void EstimatorInterface::setIMUData(uint64_t time_usec, uint64_t delta_ang_dt, uint64_t delta_vel_dt, float *delta_ang,
-				    float *delta_vel)
+// 累积IMU数据
+void EstimatorInterface::setIMUData(uint64_t time_usec, uint64_t delta_ang_dt, uint64_t delta_vel_dt,
+                                    float *delta_ang, float *delta_vel) //陀螺积分，加速度积分
 {
 	if (!_initialised) {
-		init(time_usec);
+		init(time_usec); //EKF中定义，变量的初始化，同时调用了initialise_interface函数
 		_initialised = true;
 	}
 
 	float dt = (float)(time_usec - _time_last_imu) / 1000 / 1000;
 	dt = math::max(dt, 1.0e-4f);
 	dt = math::min(dt, 0.02f);
-
 	_time_last_imu = time_usec;
-
-	if (_time_last_imu > 0) {
+	if (_time_last_imu > 0) { //平均IMU更新频率，过低通
 		_dt_imu_avg = 0.8f * _dt_imu_avg + 0.2f * dt;
 	}
 
 	// copy data
 	imuSample imu_sample_new = {};
-	memcpy(&imu_sample_new.delta_ang._data[0], delta_ang, sizeof(imu_sample_new.delta_ang._data));
-	memcpy(&imu_sample_new.delta_vel._data[0], delta_vel, sizeof(imu_sample_new.delta_vel._data));
-
+	memcpy(&imu_sample_new.delta_ang._data[0], delta_ang, sizeof(imu_sample_new.delta_ang._data)); //获得陀螺积分（角度）
+	memcpy(&imu_sample_new.delta_vel._data[0], delta_vel, sizeof(imu_sample_new.delta_vel._data)); //获得加速度积分
 	// convert time from us to secs
 	imu_sample_new.delta_ang_dt = delta_ang_dt / 1e6f;
 	imu_sample_new.delta_vel_dt = delta_vel_dt / 1e6f;
 	imu_sample_new.time_us = time_usec;
 	_imu_ticks++;
 
+	// 对于IMU振动的衡量
 	// calculate a metric which indicates the amount of coning vibration
 	Vector3f temp = cross_product(imu_sample_new.delta_ang , _delta_ang_prev);
 	_vibe_metrics[0] = 0.99f * _vibe_metrics[0] + 0.01f * temp.length();
-
 	// calculate a metric which indiates the amount of high frequency gyro vibration
 	temp = imu_sample_new.delta_ang - _delta_ang_prev;
 	_delta_ang_prev = imu_sample_new.delta_ang;
 	_vibe_metrics[1] = 0.99f * _vibe_metrics[1] + 0.01f * temp.length();
-
 	// calculate a metric which indicates the amount of high fequency accelerometer vibration
 	temp = imu_sample_new.delta_vel - _delta_vel_prev;
 	_delta_vel_prev = imu_sample_new.delta_vel;
 	_vibe_metrics[2] = 0.99f * _vibe_metrics[2] + 0.01f * temp.length();
 
 	// accumulate and down-sample imu data and push to the buffer when new downsampled data becomes available
-	if (collect_imu(imu_sample_new)) {
+	if (collect_imu(imu_sample_new)) { //定义在ekf中，对imu_sample_new中的数据进行处理
 		_imu_buffer.push(imu_sample_new);
 		_imu_ticks = 0;
 		_imu_updated = true;
-
 		// get the oldest data from the buffer
 		_imu_sample_delayed = _imu_buffer.get_oldest();
-
 		// calculate the minimum interval between observations required to guarantee no loss of data
 		// this will occur if data is overwritten before its time stamp falls behind the fusion time horizon
 		_min_obs_interval_us = (_imu_sample_new.time_us - _imu_sample_delayed.time_us)/(_obs_buffer_length - 1);
-
 	} else {
 		_imu_updated = false;
-
 	}
 }
 
+// 积累磁罗盘数据
 void EstimatorInterface::setMagData(uint64_t time_usec, float *data)
 {
 	// limit data rate to prevent data being lost
+	// 为了使得测量值更新
 	if (time_usec - _time_last_mag > _min_obs_interval_us) {
-
 		magSample mag_sample_new = {};
 		mag_sample_new.time_us = time_usec  - _params.mag_delay_ms * 1000;
-
-		mag_sample_new.time_us -= FILTER_UPDATE_PERIOD_MS * 1000 / 2;
+		mag_sample_new.time_us -= FILTER_UPDATE_PERIOD_MS * 1000 / 2; //EKF的预测周期，10ms
 		_time_last_mag = time_usec;
 
-
 		memcpy(&mag_sample_new.mag._data[0], data, sizeof(mag_sample_new.mag._data));
-
 		_mag_buffer.push(mag_sample_new);
 	}
 }
 
+// 积累GPS信息
 void EstimatorInterface::setGpsData(uint64_t time_usec, struct gps_message *gps)
 {
 	if (!_initialised) {
@@ -173,42 +165,36 @@ void EstimatorInterface::setGpsData(uint64_t time_usec, struct gps_message *gps)
 	}
 
 	// limit data rate to prevent data being lost
-	bool need_gps = (_params.fusion_mode & MASK_USE_GPS) || (_params.vdist_sensor_type == VDIST_SENSOR_GPS);
+	bool need_gps = (_params.fusion_mode & MASK_USE_GPS) || (_params.vdist_sensor_type == VDIST_SENSOR_GPS); //GPS融合使能，或者要用其高度信息
 	if (((time_usec - _time_last_gps) > _min_obs_interval_us) && need_gps) {
 		gpsSample gps_sample_new = {};
 		gps_sample_new.time_us = gps->time_usec - _params.gps_delay_ms * 1000;
-
 		gps_sample_new.time_us -= FILTER_UPDATE_PERIOD_MS * 1000 / 2;
 		_time_last_gps = time_usec;
-
 		gps_sample_new.time_us = math::max(gps_sample_new.time_us, _imu_sample_delayed.time_us);
 
 		memcpy(gps_sample_new.vel._data[0], gps->vel_ned, sizeof(gps_sample_new.vel._data));
-
 		_gps_speed_valid = gps->vel_ned_valid;
 		gps_sample_new.sacc = gps->sacc;
 		gps_sample_new.hacc = gps->eph;
 		gps_sample_new.vacc = gps->epv;
-
 		gps_sample_new.hgt = (float)gps->alt * 1e-3f;
-
 		// Only calculate the relative position if the WGS-84 location of the origin is set
-		if (collect_gps(time_usec, gps)) {
+		if (collect_gps(time_usec, gps)) { //定义在gps_checks中，关键是在一开始时进行坐标系的初始化
 			float lpos_x = 0.0f;
 			float lpos_y = 0.0f;
 			map_projection_project(&_pos_ref, (gps->lat / 1.0e7), (gps->lon / 1.0e7), &lpos_x, &lpos_y);
-			gps_sample_new.pos(0) = lpos_x;
+			gps_sample_new.pos(0) = lpos_x; //基于GPS测量获得本地位置
 			gps_sample_new.pos(1) = lpos_y;
-
 		} else {
 			gps_sample_new.pos(0) = 0.0f;
 			gps_sample_new.pos(1) = 0.0f;
 		}
-
 		_gps_buffer.push(gps_sample_new);
 	}
 }
 
+// 积累气压计信息
 void EstimatorInterface::setBaroData(uint64_t time_usec, float *data)
 {
 	if (!_initialised) {
@@ -217,20 +203,18 @@ void EstimatorInterface::setBaroData(uint64_t time_usec, float *data)
 
 	// limit data rate to prevent data being lost
 	if (time_usec - _time_last_baro > _min_obs_interval_us) {
-
 		baroSample baro_sample_new;
 		baro_sample_new.hgt = *data;
 		baro_sample_new.time_us = time_usec - _params.baro_delay_ms * 1000;
-
 		baro_sample_new.time_us -= FILTER_UPDATE_PERIOD_MS * 1000 / 2;
 		_time_last_baro = time_usec;
-
 		baro_sample_new.time_us = math::max(baro_sample_new.time_us, _imu_sample_delayed.time_us);
 
 		_baro_buffer.push(baro_sample_new);
 	}
 }
 
+// 积累气压计消息
 void EstimatorInterface::setAirspeedData(uint64_t time_usec, float *true_airspeed, float *eas2tas)
 {
 	if (!_initialised) {
@@ -249,6 +233,8 @@ void EstimatorInterface::setAirspeedData(uint64_t time_usec, float *true_airspee
 		_airspeed_buffer.push(airspeed_sample_new);
 	}
 }
+
+// 积累测距仪消息
 static float rng;
 // set range data
 void EstimatorInterface::setRangeData(uint64_t time_usec, float *data)
@@ -280,21 +266,18 @@ void EstimatorInterface::setOpticalFlowData(uint64_t time_usec, flow_message *fl
 	if (time_usec - _time_last_optflow > _min_obs_interval_us) {
 		// check if enough integration time
 		float delta_time = 1e-6f * (float)flow->dt;
-		bool delta_time_good = (delta_time >= 0.05f);
-
+		bool delta_time_good = (delta_time >= 0.05f); //数据是实时性
 		// check magnitude is within sensor limits
 		float flow_rate_magnitude;
 		bool flow_magnitude_good = false;
-
 		if (delta_time_good) {
 			flow_rate_magnitude = flow->flowdata.norm() / delta_time;
 			flow_magnitude_good = (flow_rate_magnitude <= _params.flow_rate_max);
 		}
-
 		// check quality metric
 		bool flow_quality_good = (flow->quality >= _params.flow_qual_min);
 
-		if (delta_time_good && flow_magnitude_good && flow_quality_good) {
+		if (delta_time_good && flow_magnitude_good && flow_quality_good) { //检测光流数据的质量
 			flowSample optflow_sample_new;
 			// calculate the system time-stamp for the mid point of the integration period
 			optflow_sample_new.time_us = time_usec - _params.flow_delay_ms * 1000 - flow->dt / 2;
@@ -340,16 +323,16 @@ void EstimatorInterface::setExtVisionData(uint64_t time_usec, ext_vision_message
 	}
 }
 
+// 主要是分配传感器数据的buffer长度，对buffer进行初始化
 bool EstimatorInterface::initialise_interface(uint64_t timestamp)
 {
 	// find the maximum time delay required to compensate for
 	uint16_t max_time_delay_ms = math::max(_params.mag_delay_ms,
-					 math::max(_params.range_delay_ms,
-					     math::max(_params.gps_delay_ms,
-						 math::max(_params.flow_delay_ms,
-						     math::max(_params.ev_delay_ms,
-							 math::max(_params.airspeed_delay_ms, _params.baro_delay_ms))))));
-
+					                       math::max(_params.range_delay_ms,
+					                                 math::max(_params.gps_delay_ms,
+						                                       math::max(_params.flow_delay_ms,
+						                                                 math::max(_params.ev_delay_ms,
+							                                                       math::max(_params.airspeed_delay_ms, _params.baro_delay_ms))))));
 	// calculate the IMU buffer length required to accomodate the maximum delay with some allowance for jitter
 	_imu_buffer_length = (max_time_delay_ms / FILTER_UPDATE_PERIOD_MS) + 1;
 
@@ -358,13 +341,12 @@ bool EstimatorInterface::initialise_interface(uint64_t timestamp)
 	// allow for worst case 50% extension of the ekf fusion time horizon delay due to timing jitter
 	uint16_t ekf_delay_ms = max_time_delay_ms + (int)(ceil((float)max_time_delay_ms * 0.5f));
 	_obs_buffer_length = (ekf_delay_ms / _params.sensor_interval_min_ms) + 1;
-
 	// limit to be no longer than the IMU buffer (we can't process data faster than the EKF prediction rate)
-	_obs_buffer_length = math::min(_obs_buffer_length,_imu_buffer_length);
+	_obs_buffer_length = math::min(_obs_buffer_length,_imu_buffer_length); //根本原因时测量更新（使用其他传感器）不能快于预测更新（使用IMU）
 
 	ECL_INFO("EKF IMU buffer length = %i",(int)_imu_buffer_length);
 	ECL_INFO("EKF observation buffer length = %i",(int)_obs_buffer_length);
-
+	// 分配buffer长度
 	if (!(_imu_buffer.allocate(_imu_buffer_length) &&
 	      _gps_buffer.allocate(_obs_buffer_length) &&
 	      _mag_buffer.allocate(_obs_buffer_length) &&
@@ -375,10 +357,9 @@ bool EstimatorInterface::initialise_interface(uint64_t timestamp)
 	      _ext_vision_buffer.allocate(_obs_buffer_length) &&
 	      _output_buffer.allocate(_imu_buffer_length))) {
 		ECL_ERR("EKF buffer allocation failed!");
-		unallocate_buffers();
+		unallocate_buffers(); //释放buffer
 		return false;
 	}
-
 	// zero the data in the observation buffers
 	for (int index=0; index < _obs_buffer_length; index++) {
 		gpsSample gps_sample_init = {};
@@ -396,7 +377,6 @@ bool EstimatorInterface::initialise_interface(uint64_t timestamp)
 		extVisionSample ext_vision_sample_init = {};
 		_ext_vision_buffer.push(ext_vision_sample_init);
 	}
-
 	// zero the data in the imu data and output observer state buffers
 	for (int index=0; index < _imu_buffer_length; index++) {
 		imuSample imu_sample_init = {};
@@ -405,7 +385,7 @@ bool EstimatorInterface::initialise_interface(uint64_t timestamp)
 		_output_buffer.push(output_sample_init);
 	}
 
-	_dt_imu_avg = 0.0f;
+	_dt_imu_avg = 0.0f; //平均IMU更新周期
 
 	_imu_sample_delayed.delta_ang.setZero();
 	_imu_sample_delayed.delta_vel.setZero();
@@ -440,13 +420,12 @@ void EstimatorInterface::unallocate_buffers()
 	_flow_buffer.unallocate();
 	_ext_vision_buffer.unallocate();
 	_output_buffer.unallocate();
-
 }
 
 bool EstimatorInterface::local_position_is_valid()
 {
 	// return true if the position estimate is valid
 	return (((_time_last_imu - _time_last_optflow) < 5e6) && _control_status.flags.opt_flow) || 
-		(((_time_last_imu - _time_last_ext_vision) < 5e6) && _control_status.flags.ev_pos) || 
-		global_position_is_valid();
+		   (((_time_last_imu - _time_last_ext_vision) < 5e6) && _control_status.flags.ev_pos) || 
+		   global_position_is_valid(); //全球位置可用，本地位置估计一定时可用的
 }

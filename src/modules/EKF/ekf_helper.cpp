@@ -518,38 +518,32 @@ void Ekf::makeSymmetrical(float (&cov_mat)[_k_num_states][_k_num_states], uint8_
 	}
 }
 
+// 约束状态预估值的范围
 void Ekf::constrainStates()
 {
 	for (int i = 0; i < 4; i++) {
 		_state.quat_nominal(i) = math::constrain(_state.quat_nominal(i), -1.0f, 1.0f);
 	}
-
 	for (int i = 0; i < 3; i++) {
 		_state.vel(i) = math::constrain(_state.vel(i), -1000.0f, 1000.0f);
 	}
-
 	for (int i = 0; i < 3; i++) {
 		_state.pos(i) = math::constrain(_state.pos(i), -1.e6f, 1.e6f);
 	}
-
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 3; i++) {                                               //平均IMU更新周期，因为用于状态预估的是陀螺积分和加速度积分
 		_state.gyro_bias(i) = math::constrain(_state.gyro_bias(i), -0.349066f * _dt_imu_avg, 0.349066f * _dt_imu_avg);
 	}
-
 	for (int i = 0; i < 3; i++) {
 		_state.accel_bias(i) = math::constrain(_state.accel_bias(i), -1.0f * _dt_imu_avg, 1.0f * _dt_imu_avg);
 	}
-
 	for (int i = 0; i < 3; i++) {
-		_state.mag_I(i) = math::constrain(_state.mag_I(i), -1.0f, 1.0f);
+		_state.mag_I(i) = math::constrain(_state.mag_I(i), -1.0f, 1.0f); //磁场
 	}
-
 	for (int i = 0; i < 3; i++) {
-		_state.mag_B(i) = math::constrain(_state.mag_B(i), -0.5f, 0.5f);
+		_state.mag_B(i) = math::constrain(_state.mag_B(i), -0.5f, 0.5f); //磁场偏差
 	}
-
 	for (int i = 0; i < 2; i++) {
-		_state.wind_vel(i) = math::constrain(_state.wind_vel(i), -100.0f, 100.0f);
+		_state.wind_vel(i) = math::constrain(_state.wind_vel(i), -100.0f, 100.0f); //风扰
 	}
 }
 
@@ -561,62 +555,54 @@ void Ekf::calcEarthRateNED(Vector3f &omega, double lat_rad) const
 	omega(2) = -_k_earth_rate * sinf((float)lat_rad);
 }
 
+// innovations可以理解为用于EKF测量更新的“新信息”
 // gets the innovations of velocity and position measurements
 // 0-2 vel, 3-5 pos
 void Ekf::get_vel_pos_innov(float vel_pos_innov[6])
 {
 	memcpy(vel_pos_innov, _vel_pos_innov, sizeof(float) * 6);
 }
-
 // writes the innovations of the earth magnetic field measurements
 void Ekf::get_mag_innov(float mag_innov[3])
 {
 	memcpy(mag_innov, _mag_innov, 3 * sizeof(float));
 }
-
 // gets the innovations of the airspeed measnurement
 void Ekf::get_airspeed_innov(float *airspeed_innov)
 {
 	memcpy(airspeed_innov,&_airspeed_innov, sizeof(float));
 }
-
 // gets the innovations of the synthetic sideslip measurements
 void Ekf::get_beta_innov(float *beta_innov)
 {
 	memcpy(beta_innov,&_beta_innov, sizeof(float));
 }
-
 // gets the innovations of the heading measurement
 void Ekf::get_heading_innov(float *heading_innov)
 {
 	memcpy(heading_innov, &_heading_innov, sizeof(float));
 }
-
 // gets the innovation variances of velocity and position measurements
 // 0-2 vel, 3-5 pos
 void Ekf::get_vel_pos_innov_var(float vel_pos_innov_var[6])
 {
 	memcpy(vel_pos_innov_var, _vel_pos_innov_var, sizeof(float) * 6);
 }
-
 // gets the innovation variances of the earth magnetic field measurements
 void Ekf::get_mag_innov_var(float mag_innov_var[3])
 {
 	memcpy(mag_innov_var, _mag_innov_var, sizeof(float) * 3);
 }
-
 // gest the innovation variance of the airspeed measurement
 void Ekf::get_airspeed_innov_var(float *airspeed_innov_var)
 {
 	memcpy(airspeed_innov_var, &_airspeed_innov_var, sizeof(float));
 }
-
 // gets the innovation variance of the synthetic sideslip measurement
 void Ekf::get_beta_innov_var(float *beta_innov_var)
 {
 	memcpy(beta_innov_var, &_beta_innov_var, sizeof(float));
 }
-
 // gets the innovation variance of the heading measurement
 void Ekf::get_heading_innov_var(float *heading_innov_var)
 {
@@ -635,31 +621,24 @@ void Ekf::get_state_delayed(float *state)
 	for (int i = 0; i < 4; i++) {
 		state[i] = _state.quat_nominal(i);
 	}
-
 	for (int i = 0; i < 3; i++) {
 		state[i + 4] = _state.vel(i);
 	}
-
 	for (int i = 0; i < 3; i++) {
 		state[i + 7] = _state.pos(i);
 	}
-
 	for (int i = 0; i < 3; i++) {
 		state[i + 10] = _state.gyro_bias(i);
 	}
-
 	for (int i = 0; i < 3; i++) {
 		state[i + 13] = _state.accel_bias(i);
 	}
-
 	for (int i = 0; i < 3; i++) {
 		state[i + 16] = _state.mag_I(i);
 	}
-
 	for (int i = 0; i < 3; i++) {
 		state[i + 19] = _state.mag_B(i);
 	}
-
 	for (int i = 0; i < 2; i++) {
 		state[i + 22] = _state.wind_vel(i);
 	}
@@ -669,7 +648,7 @@ void Ekf::get_state_delayed(float *state)
 void Ekf::get_accel_bias(float bias[3])
 {
 	float temp[3];
-	temp[0] = _state.accel_bias(0) /_dt_ekf_avg;
+	temp[0] = _state.accel_bias(0) /_dt_ekf_avg; //加速度计偏差，需要除以平均时间间隔
 	temp[1] = _state.accel_bias(1) /_dt_ekf_avg;
 	temp[2] = _state.accel_bias(2) /_dt_ekf_avg;
 	memcpy(bias, temp, 3 * sizeof(float));
@@ -679,7 +658,7 @@ void Ekf::get_accel_bias(float bias[3])
 void Ekf::get_gyro_bias(float bias[3])
 {
 	float temp[3];
-	temp[0] = _state.gyro_bias(0) /_dt_ekf_avg;
+	temp[0] = _state.gyro_bias(0) /_dt_ekf_avg; //陀螺仪偏差
 	temp[1] = _state.gyro_bias(1) /_dt_ekf_avg;
 	temp[2] = _state.gyro_bias(2) /_dt_ekf_avg;
 	memcpy(bias, temp, 3 * sizeof(float));
@@ -694,6 +673,7 @@ void Ekf::get_covariances(float *covariances)
 }
 
 // get the position and height of the ekf origin in WGS-84 coordinates and time the origin was set
+// 惯性系原点处的经纬高
 void Ekf::get_ekf_origin(uint64_t *origin_time, map_projection_reference_s *origin_pos, float *origin_alt)
 {
 	memcpy(origin_time, &_last_gps_origin_time_us, sizeof(uint64_t));
@@ -720,6 +700,7 @@ void Ekf::get_imu_vibe_metrics(float vibe[3])
 }
 
 // get the 1-sigma horizontal and vertical position uncertainty of the ekf WGS-84 position
+// 位置不确定性
 void Ekf::get_ekf_accuracy(float *ekf_eph, float *ekf_epv, bool *dead_reckoning)
 {
 	// report absolute accuracy taking into account the uncertainty in location of the origin
@@ -731,11 +712,9 @@ void Ekf::get_ekf_accuracy(float *ekf_eph, float *ekf_epv, bool *dead_reckoning)
 	if (vel_pos_aiding && _NED_origin_initialised) {
 		hpos_err = sqrtf(P[7][7] + P[8][8] + sq(_gps_origin_eph));
 		vpos_err = sqrtf(P[9][9] + sq(_gps_origin_epv));
-
 	} else {
 		hpos_err = 0.0f;
 		vpos_err = 0.0f;
-
 	}
 
 	// report dead reckoning if it is more than a second since we fused in position measurements
@@ -792,37 +771,31 @@ void Ekf::get_ekf_soln_status(uint16_t *status)
 }
 
 // fuse measurement
+// 利用Kalman增益和新息进行测量更新
 void Ekf::fuse(float *K, float innovation)
 {
 	for (unsigned i = 0; i < 4; i++) {
 		_state.quat_nominal(i) = _state.quat_nominal(i) - K[i] * innovation;
 	}
 	_state.quat_nominal.normalize();
-
 	for (unsigned i = 0; i < 3; i++) {
 		_state.vel(i) = _state.vel(i) - K[i + 4] * innovation;
 	}
-
 	for (unsigned i = 0; i < 3; i++) {
 		_state.pos(i) = _state.pos(i) - K[i + 7] * innovation;
 	}
-
 	for (unsigned i = 0; i < 3; i++) {
 		_state.gyro_bias(i) = _state.gyro_bias(i) - K[i + 10] * innovation;
 	}
-
 	for (unsigned i = 0; i < 3; i++) {
 		_state.accel_bias(i) = _state.accel_bias(i) - K[i + 13] * innovation;
 	}
-
 	for (unsigned i = 0; i < 3; i++) {
 		_state.mag_I(i) = _state.mag_I(i) - K[i + 16] * innovation;
 	}
-
 	for (unsigned i = 0; i < 3; i++) {
 		_state.mag_B(i) = _state.mag_B(i) - K[i + 19] * innovation;
 	}
-
 	for (unsigned i = 0; i < 2; i++) {
 		_state.wind_vel(i) = _state.wind_vel(i) - K[i + 22] * innovation;
 	}
@@ -856,6 +829,7 @@ bool Ekf::global_position_is_valid()
 }
 
 // perform a vector cross product
+// % ×
 Vector3f EstimatorInterface::cross_product(const Vector3f &vecIn1, const Vector3f &vecIn2)
 {
 	Vector3f vecOut;
@@ -866,6 +840,7 @@ Vector3f EstimatorInterface::cross_product(const Vector3f &vecIn1, const Vector3
 }
 
 // calculate the inverse rotation matrix from a quaternion rotation
+// 机体轴系到惯性系
 Matrix3f EstimatorInterface::quat_to_invrotmat(const Quaternion quat)
 {
 	float q00 = quat(0) * quat(0);
@@ -939,12 +914,13 @@ Vector3f Ekf::calcRotVecVariances()
 }
 
 // initialise the quaternion covariances using rotation vector variances
+// 通过旋转矢量rot_vec_var初始化四元数协方差
 void Ekf::initialiseQuatCovariances(Vector3f &rot_vec_var)
 {
 	// calculate an equivalent rotation vector from the quaternion
 	float q0,q1,q2,q3;
 	if (_state.quat_nominal(0) >= 0.0f) {
-		q0 = _state.quat_nominal(0);
+		q0 = _state.quat_nominal(0); //延时域下的四元数
 		q1 = _state.quat_nominal(1);
 		q2 = _state.quat_nominal(2);
 		q3 = _state.quat_nominal(3);
@@ -954,9 +930,9 @@ void Ekf::initialiseQuatCovariances(Vector3f &rot_vec_var)
 		q2 = -_state.quat_nominal(2);
 		q3 = -_state.quat_nominal(3);
 	}
-	float delta = 2.0f*acosf(q0);
+	float delta = 2.0f*acosf(q0); //旋转角度
 	float scaler = (delta/sinf(delta*0.5f));
-	float rotX = scaler*q1;
+	float rotX = scaler*q1; //旋转矢量
 	float rotY = scaler*q2;
 	float rotZ = scaler*q3;
 
@@ -1005,11 +981,9 @@ void Ekf::initialiseQuatCovariances(Vector3f &rot_vec_var)
 		float t42 = t41-rot_vec_var(1)*t30*t39-rot_vec_var(2)*t33*t39;
 		float t43 = t16-t25;
 		float t44 = t17-t36;
-
 		// zero all the quaternion covariances
 		zeroRows(P,0,3);
 		zeroCols(P,0,3);
-
 		// Update the quaternion internal covariances using auto-code generated using matlab symbolic toolbox
 		P[0][0] = rot_vec_var(0)*t2*t9*t10*0.25f+rot_vec_var(1)*t4*t9*t10*0.25f+rot_vec_var(2)*t5*t9*t10*0.25f;
 		P[0][1] = t22;
@@ -1027,7 +1001,6 @@ void Ekf::initialiseQuatCovariances(Vector3f &rot_vec_var)
 		P[3][1] = rot_vec_var(1)*(t15-t23)*(t17-t36)-rot_vec_var(0)*t19*t31-rot_vec_var(2)*t31*t33;
 		P[3][2] = t42;
 		P[3][3] = rot_vec_var(2)*(t33*t33)+rot_vec_var(0)*(t43*t43)+rot_vec_var(1)*(t44*t44);
-
 	} else {
 		// the equations are badly conditioned so use a small angle approximation
 		P[0][0] = 0.0f;
@@ -1046,6 +1019,5 @@ void Ekf::initialiseQuatCovariances(Vector3f &rot_vec_var)
 		P[3][1] = 0.0f;
 		P[3][2] = 0.0f;
 		P[3][3] = 0.25f*rot_vec_var(2);
-
 	}
 }
