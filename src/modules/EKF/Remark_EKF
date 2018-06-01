@@ -1,0 +1,54 @@
+EKF2采用Estimation and Control Library（.../src/lib/ecl/EKF）中的EKF进行姿态与位置解算
+
+EKF所需要的参数，定义于common.h中的结构体“parameters”
+所要解算的状态，定义于common.h中的结构体“stateSample”中，包含四元数（4）、NED速度（3）、NED位置（3）、陀螺偏差（3）、加速度偏差（3）、NED磁场（3）、磁力计偏差（3）、风速（2），共24个状态
+采用的传感器信息包括：陀螺仪（直接使用陀螺积分）、加速度计（直接使用加速度积分，可选择不估计加速度偏差，见参数EKF2_AID_MASK）、GPS（直接使用转换到NED下的位置信息）、磁罗盘、气压计（高度信息可以选择多种来源，见参数EKF2_HGT_MODE）、测距仪、光流、风速管、视觉（可以时动捕信息）等
+
+线程EKF2中的功能比较简单，填入传感器数据，EKF更新，读取EKF估计值——
+1. _ekf.setIMUData更新IMU信息：使用陀螺积分，相当于姿态变化值；使用了加速度积分，相当于速度变化量
+setIMUData(...)定义在estimator_interface.cpp中，这是EKF的父类。此函数中，进行了_ekf的初始化，估计状态值置0，预处理后，将IMU信息放入缓存区_imu_buffer，并获得缓存区最旧的数据_imu_sample_delayed
+2. _ekf.setMagData更新磁罗盘信息，_ekf.setBaroData更新气压计信息
+3. _ekf.setGpsData更新GPS信息，setGpsData(...)定义在estimator_interface.cpp中，信息填入缓存区_gps_buffer
+函数中，collect_gps(...)函数会进行GPS的初始化，至少需要10s的初始化时间，定义于gps_checks.cpp中，初始化后，才能将经纬高信息转化为NED信息
+4. _ekf.setAirspeedData、_ekf.setOpticalFlowData、_ekf.setExtVisionData更新风速、光流、视觉数据，存入对应缓存区
+5. _ekf.update()实现EKF的全部功能，下面会详细介绍
+6. 通过_ekf.get_...(...)函数们，获得非延时域速度、位置、四元数（隐含一个互补滤波器），以及延时域下的传感器偏差等（EKF实现）
+
+EKF初始化——
+EKF2直接调用了ekf.cpp中的update()函数，首先使用函数initialiseFilter()进行EKF的初始化
+使用IMU的加速度积分和进行姿态四元数的初始化，进行高度的初始化，_state是延时域EKF状态
+函数initialiseCovariance()对状态协方差阵进行更新，函数定义在covariance.cpp中，采用测量噪声等设置参数进行初始化
+_output_buffer中存放的是非延时域的状态，其初始化在函数alignOutputFilter()中实现，在ekf_helper.cpp中
+_state初始化时，使用的就是_imu_sample_delayed以及比这数据还要旧的其他传感器信息
+关于_state的EKF估计是在延时域上进行的
+
+EKF预测更新——
+预测更新使用的ekf.cpp中的函数predictState()：
+首先，获得陀螺测量的旋转角度，将其转化为四元数，对当前姿态四元数进行旋转（Δq×q），作为四元数的预估值；
+之后，加速度积分，对于速度进行更新，作为速度预估值；
+位置预估值直接根据上一周期的速度和速度预估值获得
+注意：姿态和位置的预测更新使用的都是延时域的测量值_imu_sample_delayed，系统的状态方程输入为陀螺积分和加速度积分（注意重力的影响）
+预测更新后，使用函数predictCovariance()进行协方差阵的更新：
+函数定义在covariance.cpp中，标准的EKF估计协方差采用 P_=F*P*F^T+Q，F是非线性系统状态方程相对于状态的雅可比矩阵，Q是测量噪声协方差阵
+但是，过程没看懂，比较复杂的代码实现，应该是上述原理
+注意：根据地面的设置，协方差阵的部分是不进行更新的，因为一些状态可能不会进行估计，比如加速度偏差，不更新的部分会直接赋值为上一时刻的值，且不受到过程噪声的影响
+注意：地面站设置的过程噪声标准差都是对于连续系统而言的，EKF所面对的是离散系统，需要将地面站的设置值*dt
+
+EKF测量更新——
+
+
+延时域～非延时域——
+
+
+单独的地形KF——
+代码在terrain_estimator.cpp中
+地形垂向位置=-地形高度=距地高度-起飞高度=距地高度+飞机D位置
+初始化函数initHagl()：
+成功的初始化需要较新的距离传感器信息，且距离传感器测得是直线距离l，l*cos(phi)*cos(theta)才是距地距离
+预测函数predictHagl()：
+系统状态方程为Tv(k+1)=Tv(k)+w(k)，假设了地面高度慢变，只受噪声驱动
+关键是要更新估计协方差，考虑了过程噪声协方差以及地形梯度的影响
+测量更新函数fuseHagl()：
+测量方程yT=Tv-xD，可以根据预估状态以及测量值生成新息（innovation）
+观测噪声的协方差阵包含了测距仪的测量噪声以及垂向位置的协方差
+KF生成地形估计值_terrain_vpos以及协方差阵_terrain_var
