@@ -1728,7 +1728,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = _vel_sp(1) * _params.vel_max(1) / vel_norm_xy;
 				}
 				/* make sure velocity setpoint is saturated in z*/
-				// （V44待修改）
+				// 注意这里对于垂向期望速度的限制（V44待修改）
 				if (_vel_sp(2) < -1.0f * _params.vel_max_up) {
 					_vel_sp(2) = -1.0f * _params.vel_max_up;
 				}
@@ -2051,6 +2051,14 @@ MulticopterPositionControl::task_main()
 						if (thrust_int(2) > 0.0f) {
 							thrust_int(2) = 0.0f;
 						}
+						// 进行大旋翼转角下的“高度控制”时，
+						// 将高度的拉力控制积分器置为0
+						if(_control_mode.flag_control_climb_rate_enabled &&
+						(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
+							_vtol_schedule.flight_mode == FW_MODE ||
+							_vtol_schedule.flight_mode == TRANSITION_BACK_P1)){
+							thrust_int(2) = 0.0f;
+						}
 					}
 					// 计算NED三轴方向的所需拉力值 ↑
 
@@ -2275,16 +2283,6 @@ MulticopterPositionControl::task_main()
 				}
 			}
 
-			/* control throttle directly if no climb rate controller is active */
-			// 如果不进行“高度控制”，杆量直接给油门量
-			if (!_control_mode.flag_control_climb_rate_enabled) {
-				float thr_val = throttle_curve(_manual.z, _params.thr_hover); //杆量给到油门
-				_att_sp.thrust = math::min(thr_val, _manual_thr_max.get());
-				/* enforce minimum throttle if not landed */
-				if (!_vehicle_land_detected.landed) {
-					_att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get()); //杆量生成的油门（V44待修改）
-				}
-			}
 			/* control roll and pitch directly if no aiding velocity controller is active */
 			if (!_control_mode.flag_control_velocity_enabled) {
 				/***********************************************************************************/
@@ -2380,19 +2378,36 @@ MulticopterPositionControl::task_main()
 							break;
 					}
 				}
+
+				/* control throttle directly if no climb rate controller is active */
+				// 如果不进行“高度控制”，杆量直接给油门量
+				if (!_control_mode.flag_control_climb_rate_enabled) {
+					float thr_val = throttle_curve(_manual.z, _params.thr_hover); //杆量给到油门
+					_att_sp.thrust = math::min(thr_val, _manual_thr_max.get());
+					/* enforce minimum throttle if not landed */
+					if (!_vehicle_land_detected.landed) {
+						_att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get()); //杆量生成的油门（V44待修改）
+					}
+				}
 				// 进一步进行大旋翼转角下的“高度控制”
 				// 大旋翼转角意味着较大飞行速度，可以使用俯仰角进行高度控制
+				// 旋翼拉力是否保持高度控制？？？还是重新进行赋值？？？
 				if(_control_mode.flag_control_climb_rate_enabled &&
 				   (_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
-				    _vtol_schedule.flight_mode == FW_MODE ||
+					_vtol_schedule.flight_mode == FW_MODE ||
 					_vtol_schedule.flight_mode == TRANSITION_BACK_P1)){
-
+					// 设计新的速度环控制器，生成俯仰姿态期望
+					// _att_sp.pitch_body = ？？？
 				}
-
+				else{
+					// 只有在“不”进行大旋翼转角下的“高度控制”时，
+					// 杆量直接俯仰（V44待修改）
+					_att_sp.pitch_body = -_manual.x * _params.man_pitch_max;
+				}
+				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转（V44待修改）
+				
 				// 根据处于的状态，决定杆量的生成量
 				// 记录倾转的状态
-				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转、俯仰角度（V44待修改）
-				_att_sp.pitch_body = -_manual.x * _params.man_pitch_max;
 				if(_vtol_schedule.flight_mode == MC_MODE)
 				{
 					_v44_tilt_flag_sp.tilt_mode = MC_MODE;
