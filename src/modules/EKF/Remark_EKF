@@ -35,10 +35,33 @@ EKF预测更新——
 注意：地面站设置的过程噪声标准差都是对于连续系统而言的，EKF所面对的是离散系统，需要将地面站的设置值*dt
 
 EKF测量更新——
+Pix可以搭载多个具有类似功能的传感器，例如气压计和视觉都可以进行飞行高度测量，那么对于测量数据融合之前就需要对融合操作进行合理地控制
+controlFusionModes()定义在control.cpp，会根据设置与传感器的实际状态进行融合控制
+（1）磁罗盘、视觉具有航向信息，标志位 _control_status.flags.ev_yaw、_control_status.flags.mag_hdg、_control_status.flags.mag_3D
+     磁罗盘可以实现与视觉一样的航向融合 fuseHeading()，也可以实现3D融合 fuseMag()（in mag_fusion.cpp）
+（2）视觉、GPS具有平面位置信息，标志位 _control_status.flags.ev_pos、_control_status.flags.gps
+     仅GPS由平面速度，根据标志位不同，融合采用 fuseVelPosHeight()（in vel_pos_fusion.cpp）
+（3）气压计、GPS、测距仪、视觉具有垂向位置信息，标志位 _control_status.flags.baro_hgt、_control_status.flags.gps_hgt、_control_status.flags.rng_hgt、_control_status.flags.ev_hgt
+     仅GPS有垂向速度，同样根据标志位不同，融合采用 fuseVelPosHeight()（in vel_pos_fusion.cpp）
+（4）光流可以获取位置信息和航向信息，标志位 _control_status.flags.opt_flow，融合采用 calcOptFlowBias()、fuseOptFlow()（in optflow_fusion.cpp）
+（5）风速管和侧划角包含风速信息，标志位 _control_status.flags.wind、_control_status.flags.fuse_beta，融合采用 resetWindStates()、resetWindCovariance()、fuseAirspeed()、fuseSideslip()（in airspeed_fusion.cpp and sideslip_fusion.cpp）
+上面的5个文件分别进行不同状态的测量更新，进行顺序是“姿态”、“风速”、“位置”
+mag_fusion.cpp：
+
+optflow_fusion.cpp：
+
+airspeed_fusion.cpp：
+
+sideslip_fusion.cpp：
+
+vel_pos_fusion.cpp：
 
 
 延时域～非延时域——
-
+上述EKF过程是在延时域进行的状态估计与数据融合，需要进一步修正延时的影响，函数calculateOutputStates()进行了这个过程
+使用最新IMU数据的姿态变化量，对 _output_new（最新的数据）的四元数进行旋转；使用IMU的速度变化数据，对 _output_new 的速度和位置信息进行补偿
+再计算对于 _output_buffer 所有位置和速度的补偿量
+参考文献：Recursive Attitude Estimation in the Presence of Multi-rate and Multi-delay Vector Measurements
 
 单独的地形KF——
 代码在terrain_estimator.cpp中

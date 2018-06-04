@@ -93,15 +93,15 @@ void Ekf::controlFusionModes()
 	// 风速管和侧划角包含风速信息，标志位 _control_status.flags.wind、_control_status.flags.fuse_beta，融合采用 resetWindStates()、resetWindCovariance()、fuseAirspeed()、fuseSideslip()
 	controlMagFusion();
 	controlExternalVisionFusion(); //先姿态
-	controlOpticalFlowFusion();
+	controlOpticalFlowFusion(); //航向和位置
 	controlGpsFusion();
 	controlBaroFusion();
-	controlRangeFinderFusion(); //再位置
+	controlRangeFinderFusion();
 	controlAirDataFusion();
-	controlBetaFusion(); //最后风速
+	controlBetaFusion(); //再风速
 	// for efficiency, fusion of direct state observations for position ad velocity is performed sequentially
 	// in a single function using sensor data from multiple sources (GPS, external vision, baro, range finder, etc)
-	controlVelPosFusion();
+	controlVelPosFusion(); //最后位置
 }
 
 // 视觉的融合控制
