@@ -214,7 +214,7 @@ void EstimatorInterface::setBaroData(uint64_t time_usec, float *data)
 	}
 }
 
-// 积累气压计消息
+// 积累风速消息
 void EstimatorInterface::setAirspeedData(uint64_t time_usec, float *true_airspeed, float *eas2tas)
 {
 	if (!_initialised) {
