@@ -43,6 +43,7 @@
 #include "ekf.h"
 #include "mathlib.h"
 
+// 进行3D磁场融合
 void Ekf::fuseMag()
 {
 	// assign intermediate variables
@@ -50,12 +51,12 @@ void Ekf::fuseMag()
 	float q1 = _state.quat_nominal(1);
 	float q2 = _state.quat_nominal(2);
 	float q3 = _state.quat_nominal(3);
-
-	float magN = _state.mag_I(0);
+	float magN = _state.mag_I(0); //NED地磁场
 	float magE = _state.mag_I(1);
 	float magD = _state.mag_I(2);
 
 	// XYZ Measurement uncertainty. Need to consider timing errors for fast rotations
+	// 磁罗盘测量噪声
 	float R_MAG = fmaxf(_params.mag_noise, 0.0f);
 	R_MAG = R_MAG * R_MAG;
 
@@ -74,9 +75,7 @@ void Ekf::fuseMag()
 	// rotate magnetometer earth field state into body frame
 	matrix::Dcm<float> R_to_body(_state.quat_nominal);
 	R_to_body = R_to_body.transpose();
-
 	Vector3f mag_I_rot = R_to_body * _state.mag_I;
-
 	// compute magnetometer innovations
 	_mag_innov[0] = (mag_I_rot(0) + _state.mag_B(0)) - _mag_sample_delayed.mag(0);
 	_mag_innov[1] = (mag_I_rot(1) + _state.mag_B(1)) - _mag_sample_delayed.mag(1);
@@ -89,58 +88,46 @@ void Ekf::fuseMag()
 	// X axis innovation variance
 	_mag_innov_var[0] = (P[19][19] + R_MAG + P[1][19]*SH_MAG[0] - P[2][19]*SH_MAG[1] + P[3][19]*SH_MAG[2] - P[16][19]*(SH_MAG[3] + SH_MAG[4] - SH_MAG[5] - SH_MAG[6]) + (2.0f*q0*q3 + 2.0f*q1*q2)*(P[19][17] + P[1][17]*SH_MAG[0] - P[2][17]*SH_MAG[1] + P[3][17]*SH_MAG[2] - P[16][17]*(SH_MAG[3] + SH_MAG[4] - SH_MAG[5] - SH_MAG[6]) + P[17][17]*(2.0f*q0*q3 + 2.0f*q1*q2) - P[18][17]*(2.0f*q0*q2 - 2.0f*q1*q3) + P[0][17]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) - (2.0f*q0*q2 - 2.0f*q1*q3)*(P[19][18] + P[1][18]*SH_MAG[0] - P[2][18]*SH_MAG[1] + P[3][18]*SH_MAG[2] - P[16][18]*(SH_MAG[3] + SH_MAG[4] - SH_MAG[5] - SH_MAG[6]) + P[17][18]*(2.0f*q0*q3 + 2.0f*q1*q2) - P[18][18]*(2.0f*q0*q2 - 2.0f*q1*q3) + P[0][18]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + (SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)*(P[19][0] + P[1][0]*SH_MAG[0] - P[2][0]*SH_MAG[1] + P[3][0]*SH_MAG[2] - P[16][0]*(SH_MAG[3] + SH_MAG[4] - SH_MAG[5] - SH_MAG[6]) + P[17][0]*(2.0f*q0*q3 + 2.0f*q1*q2) - P[18][0]*(2.0f*q0*q2 - 2.0f*q1*q3) + P[0][0]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + P[17][19]*(2.0f*q0*q3 + 2.0f*q1*q2) - P[18][19]*(2.0f*q0*q2 - 2.0f*q1*q3) + SH_MAG[0]*(P[19][1] + P[1][1]*SH_MAG[0] - P[2][1]*SH_MAG[1] + P[3][1]*SH_MAG[2] - P[16][1]*(SH_MAG[3] + SH_MAG[4] - SH_MAG[5] - SH_MAG[6]) + P[17][1]*(2.0f*q0*q3 + 2.0f*q1*q2) - P[18][1]*(2.0f*q0*q2 - 2.0f*q1*q3) + P[0][1]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) - SH_MAG[1]*(P[19][2] + P[1][2]*SH_MAG[0] - P[2][2]*SH_MAG[1] + P[3][2]*SH_MAG[2] - P[16][2]*(SH_MAG[3] + SH_MAG[4] - SH_MAG[5] - SH_MAG[6]) + P[17][2]*(2.0f*q0*q3 + 2.0f*q1*q2) - P[18][2]*(2.0f*q0*q2 - 2.0f*q1*q3) + P[0][2]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + SH_MAG[2]*(P[19][3] + P[1][3]*SH_MAG[0] - P[2][3]*SH_MAG[1] + P[3][3]*SH_MAG[2] - P[16][3]*(SH_MAG[3] + SH_MAG[4] - SH_MAG[5] - SH_MAG[6]) + P[17][3]*(2.0f*q0*q3 + 2.0f*q1*q2) - P[18][3]*(2.0f*q0*q2 - 2.0f*q1*q3) + P[0][3]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) - (SH_MAG[3] + SH_MAG[4] - SH_MAG[5] - SH_MAG[6])*(P[19][16] + P[1][16]*SH_MAG[0] - P[2][16]*SH_MAG[1] + P[3][16]*SH_MAG[2] - P[16][16]*(SH_MAG[3] + SH_MAG[4] - SH_MAG[5] - SH_MAG[6]) + P[17][16]*(2.0f*q0*q3 + 2.0f*q1*q2) - P[18][16]*(2.0f*q0*q2 - 2.0f*q1*q3) + P[0][16]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + P[0][19]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2));
 	// check for a badly conditioned covariance matrix
-
 	if (_mag_innov_var[0] >= R_MAG) {
 		// the innovation variance contribution from the state covariances is non-negative - no fault
 		_fault_status.flags.bad_mag_x = false;
-
 	} else {
 		// the innovation variance contribution from the state covariances is negative which means the covariance matrix is badly conditioned
 		_fault_status.flags.bad_mag_x = true;
-
 		// we need to re-initialise covariances and abort this fusion step
 		resetMagCovariance();
 		ECL_ERR("EKF magX fusion numerical error - covariance reset");
 		return;
-
 	}
 
 	// Y axis innovation variance
 	_mag_innov_var[1] = (P[20][20] + R_MAG + P[0][20]*SH_MAG[2] + P[1][20]*SH_MAG[1] + P[2][20]*SH_MAG[0] - P[17][20]*(SH_MAG[3] - SH_MAG[4] + SH_MAG[5] - SH_MAG[6]) - (2.0f*q0*q3 - 2.0f*q1*q2)*(P[20][16] + P[0][16]*SH_MAG[2] + P[1][16]*SH_MAG[1] + P[2][16]*SH_MAG[0] - P[17][16]*(SH_MAG[3] - SH_MAG[4] + SH_MAG[5] - SH_MAG[6]) - P[16][16]*(2.0f*q0*q3 - 2.0f*q1*q2) + P[18][16]*(2.0f*q0*q1 + 2.0f*q2*q3) - P[3][16]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + (2.0f*q0*q1 + 2.0f*q2*q3)*(P[20][18] + P[0][18]*SH_MAG[2] + P[1][18]*SH_MAG[1] + P[2][18]*SH_MAG[0] - P[17][18]*(SH_MAG[3] - SH_MAG[4] + SH_MAG[5] - SH_MAG[6]) - P[16][18]*(2.0f*q0*q3 - 2.0f*q1*q2) + P[18][18]*(2.0f*q0*q1 + 2.0f*q2*q3) - P[3][18]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) - (SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)*(P[20][3] + P[0][3]*SH_MAG[2] + P[1][3]*SH_MAG[1] + P[2][3]*SH_MAG[0] - P[17][3]*(SH_MAG[3] - SH_MAG[4] + SH_MAG[5] - SH_MAG[6]) - P[16][3]*(2.0f*q0*q3 - 2.0f*q1*q2) + P[18][3]*(2.0f*q0*q1 + 2.0f*q2*q3) - P[3][3]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) - P[16][20]*(2.0f*q0*q3 - 2.0f*q1*q2) + P[18][20]*(2.0f*q0*q1 + 2.0f*q2*q3) + SH_MAG[2]*(P[20][0] + P[0][0]*SH_MAG[2] + P[1][0]*SH_MAG[1] + P[2][0]*SH_MAG[0] - P[17][0]*(SH_MAG[3] - SH_MAG[4] + SH_MAG[5] - SH_MAG[6]) - P[16][0]*(2.0f*q0*q3 - 2.0f*q1*q2) + P[18][0]*(2.0f*q0*q1 + 2.0f*q2*q3) - P[3][0]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + SH_MAG[1]*(P[20][1] + P[0][1]*SH_MAG[2] + P[1][1]*SH_MAG[1] + P[2][1]*SH_MAG[0] - P[17][1]*(SH_MAG[3] - SH_MAG[4] + SH_MAG[5] - SH_MAG[6]) - P[16][1]*(2.0f*q0*q3 - 2.0f*q1*q2) + P[18][1]*(2.0f*q0*q1 + 2.0f*q2*q3) - P[3][1]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + SH_MAG[0]*(P[20][2] + P[0][2]*SH_MAG[2] + P[1][2]*SH_MAG[1] + P[2][2]*SH_MAG[0] - P[17][2]*(SH_MAG[3] - SH_MAG[4] + SH_MAG[5] - SH_MAG[6]) - P[16][2]*(2.0f*q0*q3 - 2.0f*q1*q2) + P[18][2]*(2.0f*q0*q1 + 2.0f*q2*q3) - P[3][2]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) - (SH_MAG[3] - SH_MAG[4] + SH_MAG[5] - SH_MAG[6])*(P[20][17] + P[0][17]*SH_MAG[2] + P[1][17]*SH_MAG[1] + P[2][17]*SH_MAG[0] - P[17][17]*(SH_MAG[3] - SH_MAG[4] + SH_MAG[5] - SH_MAG[6]) - P[16][17]*(2.0f*q0*q3 - 2.0f*q1*q2) + P[18][17]*(2.0f*q0*q1 + 2.0f*q2*q3) - P[3][17]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) - P[3][20]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2));
-
 	// check for a badly conditioned covariance matrix
 	if (_mag_innov_var[1] >= R_MAG) {
 		// the innovation variance contribution from the state covariances is non-negative - no fault
 		_fault_status.flags.bad_mag_y = false;
-
 	} else {
 		// the innovation variance contribution from the state covariances is negtive which means the covariance matrix is badly conditioned
 		_fault_status.flags.bad_mag_y = true;
-
 		// we need to re-initialise covariances and abort this fusion step
 		resetMagCovariance();
 		ECL_ERR("EKF magY fusion numerical error - covariance reset");
 		return;
-
 	}
 
 	// Z axis innovation variance
 	_mag_innov_var[2] = (P[21][21] + R_MAG + P[0][21]*SH_MAG[1] - P[1][21]*SH_MAG[2] + P[3][21]*SH_MAG[0] + P[18][21]*(SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6]) + (2.0f*q0*q2 + 2.0f*q1*q3)*(P[21][16] + P[0][16]*SH_MAG[1] - P[1][16]*SH_MAG[2] + P[3][16]*SH_MAG[0] + P[18][16]*(SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6]) + P[16][16]*(2.0f*q0*q2 + 2.0f*q1*q3) - P[17][16]*(2.0f*q0*q1 - 2.0f*q2*q3) + P[2][16]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) - (2.0f*q0*q1 - 2.0f*q2*q3)*(P[21][17] + P[0][17]*SH_MAG[1] - P[1][17]*SH_MAG[2] + P[3][17]*SH_MAG[0] + P[18][17]*(SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6]) + P[16][17]*(2.0f*q0*q2 + 2.0f*q1*q3) - P[17][17]*(2.0f*q0*q1 - 2.0f*q2*q3) + P[2][17]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + (SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)*(P[21][2] + P[0][2]*SH_MAG[1] - P[1][2]*SH_MAG[2] + P[3][2]*SH_MAG[0] + P[18][2]*(SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6]) + P[16][2]*(2.0f*q0*q2 + 2.0f*q1*q3) - P[17][2]*(2.0f*q0*q1 - 2.0f*q2*q3) + P[2][2]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + P[16][21]*(2.0f*q0*q2 + 2.0f*q1*q3) - P[17][21]*(2.0f*q0*q1 - 2.0f*q2*q3) + SH_MAG[1]*(P[21][0] + P[0][0]*SH_MAG[1] - P[1][0]*SH_MAG[2] + P[3][0]*SH_MAG[0] + P[18][0]*(SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6]) + P[16][0]*(2.0f*q0*q2 + 2.0f*q1*q3) - P[17][0]*(2.0f*q0*q1 - 2.0f*q2*q3) + P[2][0]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) - SH_MAG[2]*(P[21][1] + P[0][1]*SH_MAG[1] - P[1][1]*SH_MAG[2] + P[3][1]*SH_MAG[0] + P[18][1]*(SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6]) + P[16][1]*(2.0f*q0*q2 + 2.0f*q1*q3) - P[17][1]*(2.0f*q0*q1 - 2.0f*q2*q3) + P[2][1]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + SH_MAG[0]*(P[21][3] + P[0][3]*SH_MAG[1] - P[1][3]*SH_MAG[2] + P[3][3]*SH_MAG[0] + P[18][3]*(SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6]) + P[16][3]*(2.0f*q0*q2 + 2.0f*q1*q3) - P[17][3]*(2.0f*q0*q1 - 2.0f*q2*q3) + P[2][3]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + (SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6])*(P[21][18] + P[0][18]*SH_MAG[1] - P[1][18]*SH_MAG[2] + P[3][18]*SH_MAG[0] + P[18][18]*(SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6]) + P[16][18]*(2.0f*q0*q2 + 2.0f*q1*q3) - P[17][18]*(2.0f*q0*q1 - 2.0f*q2*q3) + P[2][18]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2)) + P[2][21]*(SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2));
-
 	// check for a badly conditioned covariance matrix
 	if (_mag_innov_var[2] >= R_MAG) {
 		// the innovation variance contribution from the state covariances is non-negative - no fault
 		_fault_status.flags.bad_mag_z = false;
-
 	} else if (_mag_innov_var[2] > 0.0f) {
 		// the innovation variance contribution from the state covariances is negative which means the covariance matrix is badly conditioned
 		_fault_status.flags.bad_mag_z = true;
-
 		// we need to re-initialise covariances and abort this fusion step
 		resetMagCovariance();
 		ECL_ERR("EKF magZ fusion numerical error - covariance reset");
 		return;
-
 	}
 
 	// Perform an innovation consistency check and report the result
@@ -154,10 +141,8 @@ void Ekf::fuseMag()
 			_innov_check_fail_status.value &= !(1 << (index + 3));
 		}
 	}
-
 	// we are no longer using heading fusion so set the reported test level to zero
 	_yaw_test_ratio = 0.0f;
-
 	// if any axis fails, abort the mag fusion
 	if (!healthy) {
 		return;
@@ -165,8 +150,8 @@ void Ekf::fuseMag()
 
 	// update the states and covariance using sequential fusion of the magnetometer components
 	for (uint8_t index = 0; index <= 2; index++) {
-
 		// Calculate Kalman gains and observation jacobians
+		// 计算3个轴的雅可比矩阵和Kalman增益，因为只有3个测量值
 		if (index == 0) {
 			// Calculate X axis observation jacobians
 			memset(H_MAG, 0, sizeof(H_MAG));
@@ -178,7 +163,6 @@ void Ekf::fuseMag()
 			H_MAG[17] = 2.0f*q0*q3 + 2.0f*q1*q2;
 			H_MAG[18] = 2.0f*q1*q3 - 2.0f*q0*q2;
 			H_MAG[19] = 1.0f;
-
 			// Calculate X axis Kalman gains
 			float SK_MX[5];
 			SK_MX[0] = 1.0f / _mag_innov_var[0];
@@ -186,7 +170,6 @@ void Ekf::fuseMag()
 			SK_MX[2] = SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2;
 			SK_MX[3] = 2.0f*q0*q2 - 2.0f*q1*q3;
 			SK_MX[4] = 2.0f*q0*q3 + 2.0f*q1*q2;
-
 			Kfusion[0] = SK_MX[0]*(P[0][19] + P[0][1]*SH_MAG[0] - P[0][2]*SH_MAG[1] + P[0][3]*SH_MAG[2] + P[0][0]*SK_MX[2] - P[0][16]*SK_MX[1] + P[0][17]*SK_MX[4] - P[0][18]*SK_MX[3]);
 			Kfusion[1] = SK_MX[0]*(P[1][19] + P[1][1]*SH_MAG[0] - P[1][2]*SH_MAG[1] + P[1][3]*SH_MAG[2] + P[1][0]*SK_MX[2] - P[1][16]*SK_MX[1] + P[1][17]*SK_MX[4] - P[1][18]*SK_MX[3]);
 			Kfusion[2] = SK_MX[0]*(P[2][19] + P[2][1]*SH_MAG[0] - P[2][2]*SH_MAG[1] + P[2][3]*SH_MAG[2] + P[2][0]*SK_MX[2] - P[2][16]*SK_MX[1] + P[2][17]*SK_MX[4] - P[2][18]*SK_MX[3]);
@@ -211,7 +194,6 @@ void Ekf::fuseMag()
 			Kfusion[21] = SK_MX[0]*(P[21][19] + P[21][1]*SH_MAG[0] - P[21][2]*SH_MAG[1] + P[21][3]*SH_MAG[2] + P[21][0]*SK_MX[2] - P[21][16]*SK_MX[1] + P[21][17]*SK_MX[4] - P[21][18]*SK_MX[3]);
 			Kfusion[22] = SK_MX[0]*(P[22][19] + P[22][1]*SH_MAG[0] - P[22][2]*SH_MAG[1] + P[22][3]*SH_MAG[2] + P[22][0]*SK_MX[2] - P[22][16]*SK_MX[1] + P[22][17]*SK_MX[4] - P[22][18]*SK_MX[3]);
 			Kfusion[23] = SK_MX[0]*(P[23][19] + P[23][1]*SH_MAG[0] - P[23][2]*SH_MAG[1] + P[23][3]*SH_MAG[2] + P[23][0]*SK_MX[2] - P[23][16]*SK_MX[1] + P[23][17]*SK_MX[4] - P[23][18]*SK_MX[3]);
-
 		} else if (index == 1) {
 			// Calculate Y axis observation jacobians
 			memset(H_MAG, 0, sizeof(H_MAG));
@@ -223,7 +205,6 @@ void Ekf::fuseMag()
 			H_MAG[17] = SH_MAG[4] - SH_MAG[3] - SH_MAG[5] + SH_MAG[6];
 			H_MAG[18] = 2.0f*q0*q1 + 2.0f*q2*q3;
 			H_MAG[20] = 1.0f;
-
 			// Calculate Y axis Kalman gains
 			float SK_MY[5];
 			SK_MY[0] = 1.0f / _mag_innov_var[1];
@@ -231,7 +212,6 @@ void Ekf::fuseMag()
 			SK_MY[2] = SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2;
 			SK_MY[3] = 2.0f*q0*q3 - 2.0f*q1*q2;
 			SK_MY[4] = 2.0f*q0*q1 + 2.0f*q2*q3;
-
 			Kfusion[0] = SK_MY[0]*(P[0][20] + P[0][0]*SH_MAG[2] + P[0][1]*SH_MAG[1] + P[0][2]*SH_MAG[0] - P[0][3]*SK_MY[2] - P[0][17]*SK_MY[1] - P[0][16]*SK_MY[3] + P[0][18]*SK_MY[4]);
 			Kfusion[1] = SK_MY[0]*(P[1][20] + P[1][0]*SH_MAG[2] + P[1][1]*SH_MAG[1] + P[1][2]*SH_MAG[0] - P[1][3]*SK_MY[2] - P[1][17]*SK_MY[1] - P[1][16]*SK_MY[3] + P[1][18]*SK_MY[4]);
 			Kfusion[2] = SK_MY[0]*(P[2][20] + P[2][0]*SH_MAG[2] + P[2][1]*SH_MAG[1] + P[2][2]*SH_MAG[0] - P[2][3]*SK_MY[2] - P[2][17]*SK_MY[1] - P[2][16]*SK_MY[3] + P[2][18]*SK_MY[4]);
@@ -256,7 +236,6 @@ void Ekf::fuseMag()
 			Kfusion[21] = SK_MY[0]*(P[21][20] + P[21][0]*SH_MAG[2] + P[21][1]*SH_MAG[1] + P[21][2]*SH_MAG[0] - P[21][3]*SK_MY[2] - P[21][17]*SK_MY[1] - P[21][16]*SK_MY[3] + P[21][18]*SK_MY[4]);
 			Kfusion[22] = SK_MY[0]*(P[22][20] + P[22][0]*SH_MAG[2] + P[22][1]*SH_MAG[1] + P[22][2]*SH_MAG[0] - P[22][3]*SK_MY[2] - P[22][17]*SK_MY[1] - P[22][16]*SK_MY[3] + P[22][18]*SK_MY[4]);
 			Kfusion[23] = SK_MY[0]*(P[23][20] + P[23][0]*SH_MAG[2] + P[23][1]*SH_MAG[1] + P[23][2]*SH_MAG[0] - P[23][3]*SK_MY[2] - P[23][17]*SK_MY[1] - P[23][16]*SK_MY[3] + P[23][18]*SK_MY[4]);
-
 		} else if (index == 2) {
 			// calculate Z axis observation jacobians
 			memset(H_MAG, 0, sizeof(H_MAG));
@@ -268,7 +247,6 @@ void Ekf::fuseMag()
 			H_MAG[17] = 2.0f*q2*q3 - 2.0f*q0*q1;
 			H_MAG[18] = SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6];
 			H_MAG[21] = 1.0f;
-
 			// Calculate Z axis Kalman gains
 			float SK_MZ[5];
 			SK_MZ[0] = 1.0f / _mag_innov_var[2];
@@ -276,7 +254,6 @@ void Ekf::fuseMag()
 			SK_MZ[2] = SH_MAG[7] + SH_MAG[8] - 2.0f*magD*q2;
 			SK_MZ[3] = 2.0f*q0*q1 - 2.0f*q2*q3;
 			SK_MZ[4] = 2.0f*q0*q2 + 2.0f*q1*q3;
-
 			Kfusion[0] = SK_MZ[0]*(P[0][21] + P[0][0]*SH_MAG[1] - P[0][1]*SH_MAG[2] + P[0][3]*SH_MAG[0] + P[0][2]*SK_MZ[2] + P[0][18]*SK_MZ[1] + P[0][16]*SK_MZ[4] - P[0][17]*SK_MZ[3]);
 			Kfusion[1] = SK_MZ[0]*(P[1][21] + P[1][0]*SH_MAG[1] - P[1][1]*SH_MAG[2] + P[1][3]*SH_MAG[0] + P[1][2]*SK_MZ[2] + P[1][18]*SK_MZ[1] + P[1][16]*SK_MZ[4] - P[1][17]*SK_MZ[3]);
 			Kfusion[2] = SK_MZ[0]*(P[2][21] + P[2][0]*SH_MAG[1] - P[2][1]*SH_MAG[2] + P[2][3]*SH_MAG[0] + P[2][2]*SK_MZ[2] + P[2][18]*SK_MZ[1] + P[2][16]*SK_MZ[4] - P[2][17]*SK_MZ[3]);
@@ -301,7 +278,6 @@ void Ekf::fuseMag()
 			Kfusion[21] = SK_MZ[0]*(P[21][21] + P[21][0]*SH_MAG[1] - P[21][1]*SH_MAG[2] + P[21][3]*SH_MAG[0] + P[21][2]*SK_MZ[2] + P[21][18]*SK_MZ[1] + P[21][16]*SK_MZ[4] - P[21][17]*SK_MZ[3]);
 			Kfusion[22] = SK_MZ[0]*(P[22][21] + P[22][0]*SH_MAG[1] - P[22][1]*SH_MAG[2] + P[22][3]*SH_MAG[0] + P[22][2]*SK_MZ[2] + P[22][18]*SK_MZ[1] + P[22][16]*SK_MZ[4] - P[22][17]*SK_MZ[3]);
 			Kfusion[23] = SK_MZ[0]*(P[23][21] + P[23][0]*SH_MAG[1] - P[23][1]*SH_MAG[2] + P[23][3]*SH_MAG[0] + P[23][2]*SK_MZ[2] + P[23][18]*SK_MZ[1] + P[23][16]*SK_MZ[4] - P[23][17]*SK_MZ[3]);
-
 		} else {
 			return;
 		}
@@ -309,10 +285,10 @@ void Ekf::fuseMag()
 		// apply covariance correction via P_new = (I -K*H)*P
 		// first calculate expression for KHP
 		// then calculate P - KHP
+		// H_MAG 1行24列，H_MAG 24行1列
 		float KHP[_k_num_states][_k_num_states];
 		float KH[10];
 		for (unsigned row = 0; row < _k_num_states; row++) {
-
 			KH[0] = Kfusion[row] * H_MAG[0];
 			KH[1] = Kfusion[row] * H_MAG[1];
 			KH[2] = Kfusion[row] * H_MAG[2];
@@ -323,7 +299,6 @@ void Ekf::fuseMag()
 			KH[7] = Kfusion[row] * H_MAG[19];
 			KH[8] = Kfusion[row] * H_MAG[20];
 			KH[9] = Kfusion[row] * H_MAG[21];
-
 			for (unsigned column = 0; column < _k_num_states; column++) {
 				float tmp = KH[0] * P[0][column];
 				tmp += KH[1] * P[1][column];
@@ -335,10 +310,9 @@ void Ekf::fuseMag()
 				tmp += KH[7] * P[19][column];
 				tmp += KH[8] * P[20][column];
 				tmp += KH[9] * P[21][column];
-				KHP[row][column] = tmp;
+				KHP[row][column] = tmp; //K*H*P
 			}
 		}
-
 		// if the covariance correction will result in a negative variance, then
 		// the covariance marix is unhealthy and must be corrected
 		_fault_status.flags.bad_mag_x = false;
@@ -349,10 +323,8 @@ void Ekf::fuseMag()
 				// zero rows and columns
 				zeroRows(P,i,i);
 				zeroCols(P,i,i);
-
 				//flag as unhealthy
 				healthy = false;
-
 				// update individual measurement health status
 				if (index == 0) {
 					_fault_status.flags.bad_mag_x = true;
@@ -372,17 +344,15 @@ void Ekf::fuseMag()
 					P[row][column] = P[row][column] - KHP[row][column];
 				}
 			}
-
 			// correct the covariance marix for gross errors
-			fixCovarianceErrors();
-
+			fixCovarianceErrors(); //限制协方差阵的大小
 			// apply the state corrections
-			fuse(Kfusion, _mag_innov[index]);
-
+			fuse(Kfusion, _mag_innov[index]); //更新状态_state
 		}
 	}
 }
 
+// 进行航向融合
 void Ekf::fuseHeading()
 {
 	// assign intermediate state variables
@@ -397,9 +367,11 @@ void Ekf::fuseHeading()
 	matrix::Vector3f mag_earth_pred;
 	float measured_hdg;
 
-	// determine if a 321 or 312 Euler sequence is best
+	// determine if a 321 or 312 Euler sequence is best（不同的姿态获得旋转顺序）
+	// 航向预估值：predicted_hdg，航向测量值：measured_hdg，关于四元数的雅可比矩阵：H_YAW
 	if (fabsf(_R_to_earth(2, 0)) < fabsf(_R_to_earth(2, 1))) {
 		// calculate observation jacobian when we are observing the first rotation in a 321 sequence
+		// 仅航向可测，计算雅可比矩阵
 		float t9 = q0*q3;
 		float t10 = q1*q2;
 		float t2 = t9+t10;
@@ -423,8 +395,7 @@ void Ekf::fuseHeading()
 		} else {
 			return;
 		}
-
-		H_YAW[0] = t8*t14*(q3*t3-q3*t4+q3*t5+q3*t6+q0*q1*q2*2.0f)*-2.0f;
+		H_YAW[0] = t8*t14*(q3*t3-q3*t4+q3*t5+q3*t6+q0*q1*q2*2.0f)*-2.0f; //航向相对于四元数的雅可比矩阵
 		H_YAW[1] = t8*t14*(-q2*t3+q2*t4+q2*t5+q2*t6+q0*q1*q3*2.0f)*-2.0f;
 		H_YAW[2] = t8*t14*(q1*t3+q1*t4+q1*t5-q1*t6+q0*q2*q3*2.0f)*2.0f;
 		H_YAW[3] = t8*t14*(q0*t3+q0*t4-q0*t5+q0*t6+q1*q2*q3*2.0f)*2.0f;
@@ -432,12 +403,12 @@ void Ekf::fuseHeading()
 		// rotate the magnetometer measurement into earth frame
 		matrix::Euler<float> euler321(_state.quat_nominal);
 		predicted_hdg = euler321(2); // we will need the predicted heading to calculate the innovation
-
+		                             //航向预估值
 		// Set the yaw angle to zero and rotate the measurements into earth frame using the zero yaw angle
 		euler321(2) = 0.0f;
 		matrix::Dcm<float> R_to_earth(euler321);
-
 		// calculate the observed yaw angle
+		// 磁罗盘 or 视觉 获得航向信息
 		if (_control_status.flags.mag_hdg) {
 			// rotate the magnetometer measurements into earth frame using a zero yaw angle
 			mag_earth_pred = R_to_earth * _mag_sample_delayed.mag;
@@ -452,7 +423,6 @@ void Ekf::fuseHeading()
 			// there is no yaw observation
 			return;
 		}
-
 	} else {
 		// calculate observaton jacobian when we are observing a rotation in a 312 sequence
 		float t9 = q0*q3;
@@ -478,7 +448,6 @@ void Ekf::fuseHeading()
 		} else {
 			return;
 		}
-
 		H_YAW[0] = t8*t14*(q3*t3+q3*t4-q3*t5+q3*t6-q0*q1*q2*2.0f)*-2.0f;
 		H_YAW[1] = t8*t14*(q2*t3+q2*t4+q2*t5-q2*t6-q0*q1*q3*2.0f)*-2.0f;
 		H_YAW[2] = t8*t14*(-q1*t3+q1*t4+q1*t5+q1*t6-q0*q2*q3*2.0f)*2.0f;
@@ -490,9 +459,7 @@ void Ekf::fuseHeading()
 		euler312(0) = atan2f(-_R_to_earth(0, 1) , _R_to_earth(1, 1)); // first rotation (yaw)
 		euler312(1) = asinf(_R_to_earth(2, 1)); // second rotation (roll)
 		euler312(2) = atan2f(-_R_to_earth(2, 0) , _R_to_earth(2, 2)); // third rotation (pitch)
-
 		predicted_hdg = euler312(0); // we will need the predicted heading to calculate the innovation
-
 		// Set the first rotation (yaw) to zero and rotate the measurements into earth frame
 		euler312(0) = 0.0f;
 
@@ -503,7 +470,6 @@ void Ekf::fuseHeading()
 		float c1 = cosf(euler312(1));
 		float s0 = sinf(euler312(0));
 		float c0 = cosf(euler312(0));
-
 		matrix::Dcm<float> R_to_earth;
 		R_to_earth(0, 0) = c0 * c2 - s0 * s1 * s2;
 		R_to_earth(1, 1) = c0 * c1;
@@ -550,26 +516,20 @@ void Ekf::fuseHeading()
 	_heading_innov_var = R_YAW;
 	for (unsigned row = 0; row <= 3; row++) {
 		PH[row] = 0.0f;
-
 		for (uint8_t col = 0; col <= 3; col++) {
 			PH[row] += P[row][col] * H_YAW[col];
 		}
-
 		_heading_innov_var += H_YAW[row] * PH[row];
 	}
-
 	float heading_innov_var_inv;
-
 	// check if the innovation variance calculation is badly conditioned
 	if (_heading_innov_var >= R_YAW) {
 		// the innovation variance contribution from the state covariances is not negative, no fault
 		_fault_status.flags.bad_mag_hdg = false;
 		heading_innov_var_inv = 1.0f / _heading_innov_var;
-
 	} else {
 		// the innovation variance contribution from the state covariances is negative which means the covariance matrix is badly conditioned
 		_fault_status.flags.bad_mag_hdg = true;
-
 		// we reinitialise the covariance matrix and abort this fusion step
 		initialiseCovariance();
 		ECL_ERR("EKF mag yaw fusion numerical error - covariance reset");
@@ -578,18 +538,16 @@ void Ekf::fuseHeading()
 
 	// calculate the Kalman gains
 	// only calculate gains for states we are using
+	// Kalman增益Kfusion，24行1列
 	float Kfusion[_k_num_states] = {};
-
 	for (uint8_t row = 0; row <= 15; row++) {
 		Kfusion[row] = 0.0f;
 
 		for (uint8_t col = 0; col <= 3; col++) {
 			Kfusion[row] += P[row][col] * H_YAW[col];
 		}
-
 		Kfusion[row] *= heading_innov_var_inv;
 	}
-
 	if (_control_status.flags.wind) {
 		for (uint8_t row = 22; row <= 23; row++) {
 			Kfusion[row] = 0.0f;
@@ -597,42 +555,34 @@ void Ekf::fuseHeading()
 			for (uint8_t col = 0; col <= 3; col++) {
 				Kfusion[row] += P[row][col] * H_YAW[col];
 			}
-
 			Kfusion[row] *= heading_innov_var_inv;
 		}
 	}
 
 	// wrap the heading to the interval between +-pi
 	measured_hdg = matrix::wrap_pi(measured_hdg);
-
 	// calculate the innovation
 	_heading_innov = predicted_hdg - measured_hdg;
-
 	// wrap the innovation to the interval between +-pi
 	_heading_innov = matrix::wrap_pi(_heading_innov);
-
 	// innovation test ratio
 	_yaw_test_ratio = sq(_heading_innov) / (sq(math::max(_params.heading_innov_gate, 1.0f)) * _heading_innov_var);
 
 	// we are no longer using 3-axis fusion so set the reported test levels to zero
 	memset(_mag_test_ratio, 0, sizeof(_mag_test_ratio));
-
 	// set the magnetometer unhealthy if the test fails
 	if (_yaw_test_ratio > 1.0f) {
 		_innov_check_fail_status.flags.reject_yaw = true;
-
 		// if we are in air we don't want to fuse the measurement
 		// we allow to use it when on the ground because the large innovation could be caused
 		// by interference or a large initial gyro bias
 		if (_control_status.flags.in_air) {
 			return;
-
 		} else {
 			// constrain the innovation to the maximum set by the gate
 			float gate_limit = sqrtf((sq(math::max(_params.heading_innov_gate, 1.0f)) * _heading_innov_var));
 			_heading_innov = math::constrain(_heading_innov, -gate_limit, gate_limit);
 		}
-
 	} else {
 		_innov_check_fail_status.flags.reject_yaw = false;
 	}
@@ -643,12 +593,10 @@ void Ekf::fuseHeading()
 	float KHP[_k_num_states][_k_num_states];
 	float KH[4];
 	for (unsigned row = 0; row < _k_num_states; row++) {
-
 		KH[0] = Kfusion[row] * H_YAW[0];
 		KH[1] = Kfusion[row] * H_YAW[1];
 		KH[2] = Kfusion[row] * H_YAW[2];
 		KH[3] = Kfusion[row] * H_YAW[3];
-
 		for (unsigned column = 0; column < _k_num_states; column++) {
 			float tmp = KH[0] * P[0][column];
 			tmp += KH[1] * P[1][column];
@@ -667,13 +615,10 @@ void Ekf::fuseHeading()
 			// zero rows and columns
 			zeroRows(P,i,i);
 			zeroCols(P,i,i);
-
 			//flag as unhealthy
 			healthy = false;
-
 			// update individual measurement health status
 			_fault_status.flags.bad_mag_hdg = true;
-
 		}
 	}
 
@@ -685,22 +630,21 @@ void Ekf::fuseHeading()
 				P[row][column] = P[row][column] - KHP[row][column];
 			}
 		}
-
 		// correct the covariance marix for gross errors
 		fixCovarianceErrors();
-
 		// apply the state corrections
 		fuse(Kfusion, _heading_innov);
-
 	}
 }
 
+// 融合磁偏角
+// 配合fuseMag()使用
+// 在GPS不可用时，没办法使用GPS信息修正磁偏角，这种情况下可以融合设置的磁偏角
 void Ekf::fuseDeclination()
 {
 	// assign intermediate state variables
 	float magN = _state.mag_I(0);
 	float magE = _state.mag_I(1);
-
 	float R_DECL = sq(0.5f);
 
 	// Calculate intermediate variables
@@ -771,7 +715,7 @@ void Ekf::fuseDeclination()
 	Kfusion[23] = -t4*t13*(P[23][16]*magE-P[23][17]*magN);
 
 	// calculate innovation and constrain
-	float innovation = atan2f(magE , magN) - _mag_declination;
+	float innovation = atan2f(magE , magN) - _mag_declination; //磁偏角预估值和观测值
 	innovation = math::constrain(innovation, -0.5f, 0.5f);
 
 	// apply covariance correction via P_new = (I -K*H)*P
@@ -781,10 +725,8 @@ void Ekf::fuseDeclination()
 	float KHP[_k_num_states][_k_num_states];
 	float KH[2];
 	for (unsigned row = 0; row < _k_num_states; row++) {
-
 		KH[0] = Kfusion[row] * H_DECL[16];
 		KH[1] = Kfusion[row] * H_DECL[17];
-
 		for (unsigned column = 0; column < _k_num_states; column++) {
 			float tmp = KH[0] * P[16][column];
 			tmp += KH[1] * P[17][column];
@@ -801,13 +743,10 @@ void Ekf::fuseDeclination()
 			// zero rows and columns
 			zeroRows(P,i,i);
 			zeroCols(P,i,i);
-
 			//flag as unhealthy
 			healthy = false;
-
 			// update individual measurement health status
 			_fault_status.flags.bad_mag_decl = true;
-
 		}
 	}
 
@@ -819,12 +758,9 @@ void Ekf::fuseDeclination()
 				P[row][column] = P[row][column] - KHP[row][column];
 			}
 		}
-
 		// correct the covariance marix for gross errors
 		fixCovarianceErrors();
-
 		// apply the state corrections
 		fuse(Kfusion, innovation);
-
 	}
 }

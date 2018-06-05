@@ -47,7 +47,10 @@ controlFusionModes()定义在control.cpp，会根据设置与传感器的实际�
 （5）风速管和侧划角包含风速信息，标志位 _control_status.flags.wind、_control_status.flags.fuse_beta，融合采用 resetWindStates()、resetWindCovariance()、fuseAirspeed()、fuseSideslip()（in airspeed_fusion.cpp and sideslip_fusion.cpp）
 上面的5个文件分别进行不同状态的测量更新，进行顺序是“姿态”、“风速”、“位置”
 mag_fusion.cpp：
-
+fuseMag()进行3D磁场信息融合，可以测量更新系统状态 mag_I 和 mag_B，以及四元数
+END三个方向的雅可比矩阵与Kalman增益分别计算，使用三个测量值进行更新
+fuseDeclination()进行磁偏角的融合，要配合上面这个函数使用，用于更新系统状态 mag_I 和 mag_B
+fuseHeading()仅融合航向信息，通过磁罗盘或者视觉信息测量获得航向测量值，并且测量值已经经过了磁偏角的补偿
 optflow_fusion.cpp：
 
 airspeed_fusion.cpp：
