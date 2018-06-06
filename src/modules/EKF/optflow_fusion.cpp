@@ -43,6 +43,7 @@
 #include "ekf.h"
 #include "mathlib.h"
 
+// 光流的测量是 accumulated optical flow（2个） 和 accumulated gyro value（3个）
 void Ekf::fuseOptFlow()
 {
 	float gndclearance = fmaxf(_params.rng_gnd_clearance, 0.1f);
@@ -53,62 +54,52 @@ void Ekf::fuseOptFlow()
 	float q1 = _state.quat_nominal(1);
 	float q2 = _state.quat_nominal(2);
 	float q3 = _state.quat_nominal(3);
-
 	// get latest velocity in earth frame
 	float vn = _state.vel(0);
 	float ve = _state.vel(1);
 	float vd = _state.vel(2);
-
 	// calculate the optical flow observation variance
 	float R_LOS = calcOptFlowMeasVar();
 
-	float H_LOS[2][24] = {}; // Optical flow observation Jacobians
+	float H_LOS[2][24] = {}; // Optical flow observation Jacobians 视觉流观察量的雅可比矩阵
 	float Kfusion[24][2] = {}; // Optical flow Kalman gains
 
 	// constrain height above ground to be above minimum height when sitting on ground
-	float heightAboveGndEst = math::max((_terrain_vpos - _state.pos(2)), gndclearance);
+	float heightAboveGndEst = math::max((_terrain_vpos - _state.pos(2)), gndclearance); //距地高度
 
 	// get rotation nmatrix from earth to body
 	matrix::Dcm<float> earth_to_body(_state.quat_nominal);
 	earth_to_body = earth_to_body.transpose();
-
 	// calculate the sensor position relative to the IMU
 	Vector3f pos_offset_body = _params.flow_pos_body - _params.imu_pos_body;
-
 	// calculate the velocity of the sensor reelative to the imu in body frame
 	Vector3f vel_rel_imu_body = cross_product(_flow_sample_delayed.gyroXYZ , pos_offset_body);
-
 	// calculate the velocity of the sensor in the earth frame
-	Vector3f vel_rel_earth = _state.vel + _R_to_earth * vel_rel_imu_body;
-
+	Vector3f vel_rel_earth = _state.vel + _R_to_earth * vel_rel_imu_body; //光流处的NED速度预估值
 	// rotate into body frame
-	Vector3f vel_body = earth_to_body * vel_rel_earth;
+	Vector3f vel_body = earth_to_body * vel_rel_earth; //光流处的机体轴系速度预估值
 
 	// calculate range from focal point to centre of image
 	float range = heightAboveGndEst / earth_to_body(2, 2); // absolute distance to the frame region in view
-
 	// calculate optical LOS rates using optical flow rates that have had the body angular rate contribution removed
 	// correct for gyro bias errors in the data used to do the motion compensation
 	// Note the sign convention used: A positive LOS rate is a RH rotaton of the scene about that axis.
 	Vector2f opt_flow_rate;
+	// 测量值，与平面内的姿态和速度有关
 	opt_flow_rate(0) = _flow_sample_delayed.flowRadXYcomp(0) / _flow_sample_delayed.dt + _flow_gyro_bias(0);
 	opt_flow_rate(1) = _flow_sample_delayed.flowRadXYcomp(1) / _flow_sample_delayed.dt + _flow_gyro_bias(1);
-
 	if (opt_flow_rate.norm() < _params.flow_rate_max) {
 		_flow_innov[0] =  vel_body(1) / range - opt_flow_rate(0); // flow around the X axis
 		_flow_innov[1] = -vel_body(0) / range - opt_flow_rate(1); // flow around the Y axis
-
 	} else {
 		return;
 	}
 
-
 	// Fuse X and Y axis measurements sequentially assuming observation errors are uncorrelated
-	// Calculate Obser ation Jacobians and Kalman gans for each measurement axis
+	// Calculate Obseration Jacobians and Kalman gans for each measurement axis
+	// 两个测量值相对于系统状态的雅可比矩阵 H_LOS，Kalman 增益 Kfusion
 	for (uint8_t obs_index = 0; obs_index <= 1; obs_index++) {
-
 		if (obs_index == 0) {
-
 			// calculate X axis observation Jacobian
 			float t2 = 1.0f / range;
 			H_LOS[0][0] = t2*(q1*vd*2.0f+q0*ve*2.0f-q3*vn*2.0f);
@@ -118,7 +109,6 @@ void Ekf::fuseOptFlow()
 			H_LOS[0][4] = -t2*(q0*q3*2.0f-q1*q2*2.0f);
 			H_LOS[0][5] = t2*(q0*q0-q1*q1+q2*q2-q3*q3);
 			H_LOS[0][6] = t2*(q0*q1*2.0f+q2*q3*2.0f);
-
 			// calculate intermediate variables for the X observaton innovatoin variance and Kalman gains
 			float t3 = q1*vd*2.0f;
 			float t4 = q0*ve*2.0f;
@@ -222,7 +212,6 @@ void Ekf::fuseOptFlow()
 				initialiseCovariance();
 				return;
 			}
-
 			// calculate Kalman gains for X-axis observation
 			Kfusion[0][0] = t78*(t12-P[0][4]*t2*t7+P[0][1]*t2*t15+P[0][6]*t2*t10+P[0][2]*t2*t19-P[0][3]*t2*t22+P[0][5]*t2*t27);
 			Kfusion[1][0] = t78*(t31+P[1][0]*t2*t5-P[1][4]*t2*t7+P[1][6]*t2*t10+P[1][2]*t2*t19-P[1][3]*t2*t22+P[1][5]*t2*t27);
@@ -248,12 +237,9 @@ void Ekf::fuseOptFlow()
 			Kfusion[21][0] = t78*(P[21][0]*t2*t5-P[21][4]*t2*t7+P[21][1]*t2*t15+P[21][6]*t2*t10+P[21][2]*t2*t19-P[21][3]*t2*t22+P[21][5]*t2*t27);
 			Kfusion[22][0] = t78*(P[22][0]*t2*t5-P[22][4]*t2*t7+P[22][1]*t2*t15+P[22][6]*t2*t10+P[22][2]*t2*t19-P[22][3]*t2*t22+P[22][5]*t2*t27);
 			Kfusion[23][0] = t78*(P[23][0]*t2*t5-P[23][4]*t2*t7+P[23][1]*t2*t15+P[23][6]*t2*t10+P[23][2]*t2*t19-P[23][3]*t2*t22+P[23][5]*t2*t27);
-
 			// run innovation consistency checks
 			optflow_test_ratio[0] = sq(_flow_innov[0]) / (sq(math::max(_params.flow_innov_gate, 1.0f)) * _flow_innov_var[0]);
-
 		} else if (obs_index == 1) {
-
 			// calculate Y axis observation Jacobian
 			float t2 = 1.0f / range;
 			H_LOS[1][0] = -t2*(q2*vd*-2.0f+q3*ve*2.0f+q0*vn*2.0f);
@@ -263,7 +249,6 @@ void Ekf::fuseOptFlow()
 			H_LOS[1][4] = -t2*(q0*q0+q1*q1-q2*q2-q3*q3);
 			H_LOS[1][5] = -t2*(q0*q3*2.0f+q1*q2*2.0f);
 			H_LOS[1][6] = t2*(q0*q2*2.0f-q1*q3*2.0f);
-
 			// calculate intermediate variables for the Y observaton innovatoin variance and Kalman gains
 			float t3 = q3*ve*2.0f;
 			float t4 = q0*vn*2.0f;
@@ -367,7 +352,6 @@ void Ekf::fuseOptFlow()
 				initialiseCovariance();
 				return;
 			}
-
 			// calculate Kalman gains for Y-axis observation
 			Kfusion[0][1] = -t78*(t12+P[0][5]*t2*t8-P[0][6]*t2*t10+P[0][1]*t2*t16-P[0][2]*t2*t19+P[0][3]*t2*t22+P[0][4]*t2*t27);
 			Kfusion[1][1] = -t78*(t31+P[1][0]*t2*t5+P[1][5]*t2*t8-P[1][6]*t2*t10-P[1][2]*t2*t19+P[1][3]*t2*t22+P[1][4]*t2*t27);
@@ -393,58 +377,48 @@ void Ekf::fuseOptFlow()
 			Kfusion[21][1] = -t78*(P[21][0]*t2*t5+P[21][5]*t2*t8-P[21][6]*t2*t10+P[21][1]*t2*t16-P[21][2]*t2*t19+P[21][3]*t2*t22+P[21][4]*t2*t27);
 			Kfusion[22][1] = -t78*(P[22][0]*t2*t5+P[22][5]*t2*t8-P[22][6]*t2*t10+P[22][1]*t2*t16-P[22][2]*t2*t19+P[22][3]*t2*t22+P[22][4]*t2*t27);
 			Kfusion[23][1] = -t78*(P[23][0]*t2*t5+P[23][5]*t2*t8-P[23][6]*t2*t10+P[23][1]*t2*t16-P[23][2]*t2*t19+P[23][3]*t2*t22+P[23][4]*t2*t27);
-
 			// run innovation consistency check
 			optflow_test_ratio[1] = sq(_flow_innov[1]) / (sq(math::max(_params.flow_innov_gate, 1.0f)) * _flow_innov_var[1]);
-
 		} else {
 			return;
 		}
 	}
 
 	// record the innovation test pass/fail
+	// 新息一致性检查
 	bool flow_fail = false;
 	for (uint8_t obs_index = 0; obs_index <= 1; obs_index++) {
 		if (optflow_test_ratio[obs_index] > 1.0f) {
 			flow_fail = true;
 			_innov_check_fail_status.value |= (1 << (obs_index + 9));
-
 		} else {
 			_innov_check_fail_status.value &= ~(1 << (obs_index + 9));
-
 		}
 	}
-
 	// if either axis fails we abort the fusion
 	if (flow_fail) {
 		return;
-
 	}
-
+	// Kfusion 24行2列
 	for (uint8_t obs_index = 0; obs_index <= 1; obs_index++) {
-
 		// copy the Kalman gain vector for the axis we are fusing
 		float gain[24];
-
 		for (unsigned row = 0; row <= 23; row++) {
 			gain[row] = Kfusion[row][obs_index];
 		}
-
 		// apply covariance correction via P_new = (I -K*H)*P
 		// first calculate expression for KHP
 		// then calculate P - KHP
 		float KHP[_k_num_states][_k_num_states];
 		float KH[7];
 		for (unsigned row = 0; row < _k_num_states; row++) {
-
-			KH[0] = gain[row] * H_LOS[obs_index][0];
+			KH[0] = gain[row] * H_LOS[obs_index][0]; //K*H的计算仅关注四元数、NED速度
 			KH[1] = gain[row] * H_LOS[obs_index][1];
 			KH[2] = gain[row] * H_LOS[obs_index][2];
 			KH[3] = gain[row] * H_LOS[obs_index][3];
 			KH[4] = gain[row] * H_LOS[obs_index][4];
 			KH[5] = gain[row] * H_LOS[obs_index][5];
 			KH[6] = gain[row] * H_LOS[obs_index][6];
-
 			for (unsigned column = 0; column < _k_num_states; column++) {
 				float tmp = KH[0] * P[0][column];
 				tmp += KH[1] * P[1][column];
@@ -467,10 +441,8 @@ void Ekf::fuseOptFlow()
 				// zero rows and columns
 				zeroRows(P,i,i);
 				zeroCols(P,i,i);
-
 				//flag as unhealthy
 				healthy = false;
-
 				// update individual measurement health status
 				if (obs_index == 0) {
 					_fault_status.flags.bad_optflow_X = true;
@@ -488,13 +460,10 @@ void Ekf::fuseOptFlow()
 					P[row][column] = P[row][column] - KHP[row][column];
 				}
 			}
-
 			// correct the covariance marix for gross errors
 			fixCovarianceErrors();
-
 			// apply the state corrections
 			fuse(gain, _flow_innov[obs_index]);
-
 			_time_last_of_fuse = _time_last_imu;
 			_gps_check_fail_status.value = 0;
 		}
@@ -513,12 +482,12 @@ void Ekf::get_flow_innov_var(float flow_innov_var[2])
 }
 
 // calculate optical flow gyro bias errors
+// 光流自带陀螺仪
 void Ekf::calcOptFlowBias()
 {
 	// accumulate the bias corrected delta angles from the navigation sensor and lapsed time
 	_imu_del_ang_of += _imu_sample_delayed.delta_ang;
 	_delta_time_of += _imu_sample_delayed.delta_ang_dt;
-
 	// reset the accumulators if the time interval is too large
 	if (_delta_time_of > 1.0f) {
 		_imu_del_ang_of.setZero();
@@ -532,13 +501,11 @@ void Ekf::calcOptFlowBias()
 		// calculate a reference angular rate
 		Vector3f reference_body_rate;
 		reference_body_rate = _imu_del_ang_of * (1.0f / _delta_time_of);
-
 		// calculate the optical flow sensor measured body rate
 		Vector3f of_body_rate;
 		of_body_rate = _flow_sample_delayed.gyroXYZ * (1.0f / _flow_sample_delayed.dt);
-
 		// calculate the bias estimate using  a combined LPF and spike filter
-		_flow_gyro_bias(0) = 0.99f * _flow_gyro_bias(0) + 0.01f * math::constrain((of_body_rate(0) - reference_body_rate(0)),
+		_flow_gyro_bias(0) = 0.99f * _flow_gyro_bias(0) + 0.01f * math::constrain((of_body_rate(0) - reference_body_rate(0)), //机载IMU和光流IMU的测量差
 				     -0.1f, 0.1f);
 		_flow_gyro_bias(1) = 0.99f * _flow_gyro_bias(1) + 0.01f * math::constrain((of_body_rate(1) - reference_body_rate(1)),
 				     -0.1f, 0.1f);
@@ -552,6 +519,7 @@ void Ekf::calcOptFlowBias()
 }
 
 // calculate the measurement variance for the optical flow sensor (rad/sec)^2
+// 测量噪声协方差阵 for accumulated optical flow and accumulated gyro value
 float Ekf::calcOptFlowMeasVar()
 {
 	// calculate the observation noise variance - scaling noise linearly across flow quality range
@@ -560,17 +528,14 @@ float Ekf::calcOptFlowMeasVar()
 
 	// calculate a weighting that varies between 1 when flow quality is best and 0 when flow quality is worst
 	float weighting = (255.0f - (float)_params.flow_qual_min);
-
 	if (weighting >= 1.0f) {
 		weighting = math::constrain(((float)_flow_sample_delayed.quality - (float)_params.flow_qual_min) / weighting, 0.0f,
 					    1.0f);
-
 	} else {
 		weighting = 0.0f;
 	}
 
 	// take the weighted average of the observation noie for the best and wort flow quality
 	float R_LOS = sq(R_LOS_best * weighting + R_LOS_worst * (1.0f - weighting));
-
 	return R_LOS;
 }

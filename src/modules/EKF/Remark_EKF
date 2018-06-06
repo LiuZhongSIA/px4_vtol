@@ -52,7 +52,9 @@ END三个方向的雅可比矩阵与Kalman增益分别计算，使用三个测�
 fuseDeclination()进行磁偏角的融合，要配合上面这个函数使用，用于更新系统状态 mag_I 和 mag_B
 fuseHeading()仅融合航向信息，通过磁罗盘或者视觉信息测量获得航向测量值，并且测量值已经经过了磁偏角的补偿
 optflow_fusion.cpp：
-
+光流模块的直接测量是 accumulated optical flow 和 accumulated gyro value，但是 estimator_interface.cpp 中的 setOpticalFlowData(...) 对光流的直接测量数据进行了处理，获得 flowRadXYcomp 用于测量更新
+光流的两个测量值包含四元数、NED速度信息，可分别用于更新系统状态
+因为光流自带陀螺仪，calcOptFlowBias() 使用飞控陀螺仪的测量角速度和光流陀螺仪的测量角速度计算偏差值
 airspeed_fusion.cpp：
 
 sideslip_fusion.cpp：
