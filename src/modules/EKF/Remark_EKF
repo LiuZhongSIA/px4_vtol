@@ -55,12 +55,15 @@ optflow_fusion.cpp：
 光流模块的直接测量是 accumulated optical flow 和 accumulated gyro value，但是 estimator_interface.cpp 中的 setOpticalFlowData(...) 对光流的直接测量数据进行了处理，获得 flowRadXYcomp 用于测量更新
 光流的两个测量值包含四元数、NED速度信息，可分别用于更新系统状态
 因为光流自带陀螺仪，calcOptFlowBias() 使用飞控陀螺仪的测量角速度和光流陀螺仪的测量角速度计算偏差值
-airspeed_fusion.cpp：
-
-sideslip_fusion.cpp：
-
+airspeed_fusion.cpp，sideslip_fusion.cpp：
+风速管可以测得风速，实际速度-风速=风速管测量值；侧划角的计算需要采用相对于风的速度进行，arcsin(v/V)=侧划角测量值=0（侧划角测量值直接设置为0）
+通过引入风速管测量和侧划角融合，可以用来估计风速变量 wind_vel
+如果在所有位置信息都不可用时，上述信息还将用来估计飞机的姿态与位置
 vel_pos_fusion.cpp：
-
+control.cpp 会设置标志位，控制是否进行平面速度融合（_fuse_hor_vel）、垂向速度融合（_fuse_vert_vel）、平面位置融合（_fuse_pos）、高度融合（_fuse_height）
+根据上述标志位以及不同的测量传感器，进行测量新息和测量噪声协方差阵的更新
+......_innov_var 计算的是 HPH' + R，该值需要取逆进行 Kalman 增益的计算，K=PH'/(HPH' + R)
+该值还进一步用于计算出 ..._test_ratio 进行一致性检测
 
 延时域～非延时域——
 上述EKF过程是在延时域进行的状态估计与数据融合，需要进一步修正延时的影响，函数calculateOutputStates()进行了这个过程

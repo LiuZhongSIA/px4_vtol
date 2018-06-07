@@ -56,29 +56,25 @@ void Ekf::fuseSideslip()
 	float q1 = _state.quat_nominal(1);
 	float q2 = _state.quat_nominal(2);
 	float q3 = _state.quat_nominal(3);
-
 	// get latest velocity in earth frame
 	float vn = _state.vel(0);
 	float ve = _state.vel(1);
 	float vd = _state.vel(2);
-
 	// get latest wind velocity in earth frame
 	float vwn = _state.wind_vel(0);
 	float vwe = _state.wind_vel(1);
-
 	// relative wind velocity in earth frame
     Vector3f rel_wind; 
-    rel_wind(0) = vn - vwn;
+    rel_wind(0) = vn - vwn; //相对于风的NED速度
     rel_wind(1) = ve - vwe;
     rel_wind(2) = vd;
-
     matrix::Dcm<float> earth_to_body(_state.quat_nominal);
-	earth_to_body = earth_to_body.transpose(); //Why transpose?
-
+	earth_to_body = earth_to_body.transpose();
     // rotate into body axes
-    rel_wind = earth_to_body * rel_wind;
+    rel_wind = earth_to_body * rel_wind; //相对于风的机体轴系速度
 
     // perform fusion of assumed sideslip  = 0
+	// 相对于风速的u大于7
     if (rel_wind(0) > 7.0f){
 		// Calculate the observation jacobians
 
@@ -111,10 +107,11 @@ void Ekf::fuseSideslip()
         H_BETA[23] = SH_BETA[1]*SH_BETA[4]*(SH_BETA[12] + 2.0f*q1*q2) - SH_BETA[6];
 
         for (uint8_t i=7; i<=21; i++) {
-		H_BETA[i] = 0.0f;
+		H_BETA[i] = 0.0f; //beta=arcsin(v/V)，测量方程的雅可比矩阵仅和四元数、NED速度有关
         }
 
 	// determine if we need the sideslip fusion to correct states other than wind
+	// 位置信息具有实时性，那么侧划角信息仅用来更新风速
 	bool update_wind_only = ((_time_last_imu - _time_last_gps) < 1e6) || ((_time_last_imu - _time_last_ext_vision) < 1e6) || ((_time_last_imu - _time_last_optflow) < 1e6);
 
         // intermediate variables - note SK_BETA[0] is 1/(innovation variance)
@@ -129,12 +126,10 @@ void Ekf::fuseSideslip()
 			resetWindStates();
 			resetWindCovariance();
 			ECL_ERR("EKF synthetic sideslip fusion badly conditioned - wind covariance reset");
-
 	    } else {
 		    initialiseCovariance();
 		    _state.wind_vel.setZero();
 		    ECL_ERR("EKF synthetic sideslip fusion badly conditioned - full covariance reset");
-
 	    }
             return;
         }
@@ -150,10 +145,8 @@ void Ekf::fuseSideslip()
 	if (update_wind_only) {
                 // If we are getting aiding from other sources, then don't allow the sideslip fusion to affect the non-windspeed states
                 for (unsigned row = 0; row <= 21; row++) {
-                        Kfusion[row] = 0.0f;
-
+                        Kfusion[row] = 0.0f; //仅用于更新风速
                 }
-
         } else {
                 Kfusion[0] = SK_BETA[0]*(P[0][0]*SK_BETA[5] + P[0][1]*SK_BETA[4] - P[0][4]*SK_BETA[1] + P[0][5]*SK_BETA[2] + P[0][2]*SK_BETA[6] + P[0][6]*SK_BETA[3] - P[0][3]*SK_BETA[7] + P[0][22]*SK_BETA[1] - P[0][23]*SK_BETA[2]);
                 Kfusion[1] = SK_BETA[0]*(P[1][0]*SK_BETA[5] + P[1][1]*SK_BETA[4] - P[1][4]*SK_BETA[1] + P[1][5]*SK_BETA[2] + P[1][2]*SK_BETA[6] + P[1][6]*SK_BETA[3] - P[1][3]*SK_BETA[7] + P[1][22]*SK_BETA[1] - P[1][23]*SK_BETA[2]);
@@ -171,7 +164,6 @@ void Ekf::fuseSideslip()
                 Kfusion[13] = SK_BETA[0]*(P[13][0]*SK_BETA[5] + P[13][1]*SK_BETA[4] - P[13][4]*SK_BETA[1] + P[13][5]*SK_BETA[2] + P[13][2]*SK_BETA[6] + P[13][6]*SK_BETA[3] - P[13][3]*SK_BETA[7] + P[13][22]*SK_BETA[1] - P[13][23]*SK_BETA[2]);
                 Kfusion[14] = SK_BETA[0]*(P[14][0]*SK_BETA[5] + P[14][1]*SK_BETA[4] - P[14][4]*SK_BETA[1] + P[14][5]*SK_BETA[2] + P[14][2]*SK_BETA[6] + P[14][6]*SK_BETA[3] - P[14][3]*SK_BETA[7] + P[14][22]*SK_BETA[1] - P[14][23]*SK_BETA[2]);
                 Kfusion[15] = SK_BETA[0]*(P[15][0]*SK_BETA[5] + P[15][1]*SK_BETA[4] - P[15][4]*SK_BETA[1] + P[15][5]*SK_BETA[2] + P[15][2]*SK_BETA[6] + P[15][6]*SK_BETA[3] - P[15][3]*SK_BETA[7] + P[15][22]*SK_BETA[1] - P[15][23]*SK_BETA[2]);
-
                 // Only update the magnetometer states if we are airborne and using 3D mag fusion
                 if (_control_status.flags.mag_3D && _control_status.flags.in_air) {
                         Kfusion[16] = SK_BETA[0]*(P[16][0]*SK_BETA[5] + P[16][1]*SK_BETA[4] - P[16][4]*SK_BETA[1] + P[16][5]*SK_BETA[2] + P[16][2]*SK_BETA[6] + P[16][6]*SK_BETA[3] - P[16][3]*SK_BETA[7] + P[16][22]*SK_BETA[1] - P[16][23]*SK_BETA[2]);
@@ -180,11 +172,9 @@ void Ekf::fuseSideslip()
                         Kfusion[19] = SK_BETA[0]*(P[19][0]*SK_BETA[5] + P[19][1]*SK_BETA[4] - P[19][4]*SK_BETA[1] + P[19][5]*SK_BETA[2] + P[19][2]*SK_BETA[6] + P[19][6]*SK_BETA[3] - P[19][3]*SK_BETA[7] + P[19][22]*SK_BETA[1] - P[19][23]*SK_BETA[2]);
                         Kfusion[20] = SK_BETA[0]*(P[20][0]*SK_BETA[5] + P[20][1]*SK_BETA[4] - P[20][4]*SK_BETA[1] + P[20][5]*SK_BETA[2] + P[20][2]*SK_BETA[6] + P[20][6]*SK_BETA[3] - P[20][3]*SK_BETA[7] + P[20][22]*SK_BETA[1] - P[20][23]*SK_BETA[2]);
                         Kfusion[21] = SK_BETA[0]*(P[21][0]*SK_BETA[5] + P[21][1]*SK_BETA[4] - P[21][4]*SK_BETA[1] + P[21][5]*SK_BETA[2] + P[21][2]*SK_BETA[6] + P[21][6]*SK_BETA[3] - P[21][3]*SK_BETA[7] + P[21][22]*SK_BETA[1] - P[21][23]*SK_BETA[2]);
-
                 } else {
                     for (int i = 16; i <= 21; i++) {
                         Kfusion[i] = 0.0f;
-
                     }
                 }
         }
@@ -192,31 +182,25 @@ void Ekf::fuseSideslip()
         Kfusion[23] = SK_BETA[0]*(P[23][0]*SK_BETA[5] + P[23][1]*SK_BETA[4] - P[23][4]*SK_BETA[1] + P[23][5]*SK_BETA[2] + P[23][2]*SK_BETA[6] + P[23][6]*SK_BETA[3] - P[23][3]*SK_BETA[7] + P[23][22]*SK_BETA[1] - P[23][23]*SK_BETA[2]);
 
         // Calculate predicted sideslip angle and innovation using small angle approximation
-        _beta_innov = rel_wind(1) / rel_wind(0);
-
+        _beta_innov = rel_wind(1) / rel_wind(0); //认为侧划角的测量值为0
         // Compute the ratio of innovation to gate size
         _beta_test_ratio = sq(_beta_innov) / (sq(fmaxf(_params.beta_innov_gate, 1.0f)) * _beta_innov_var);
-
 	// if the innovation consistency check fails then don't fuse the sample and indicate bad beta health
 	if (_beta_test_ratio > 1.0f) {
 		_innov_check_fail_status.flags.reject_sideslip = true;
 		return;
-
 	} else {
                 _innov_check_fail_status.flags.reject_sideslip = false;
-
         }
 
         // synthetic sideslip measurement sample has passed check so record it
         _time_last_beta_fuse = _time_last_imu;
-
 	// apply covariance correction via P_new = (I -K*H)*P
 	// first calculate expression for KHP
 	// then calculate P - KHP
 	float KHP[_k_num_states][_k_num_states];
 	float KH[9];
 	for (unsigned row = 0; row < _k_num_states; row++) {
-
 		KH[0] = Kfusion[row] * H_BETA[0];
 		KH[1] = Kfusion[row] * H_BETA[1];
 		KH[2] = Kfusion[row] * H_BETA[2];
@@ -226,7 +210,6 @@ void Ekf::fuseSideslip()
 		KH[6] = Kfusion[row] * H_BETA[6];
 		KH[7] = Kfusion[row] * H_BETA[22];
 		KH[8] = Kfusion[row] * H_BETA[23];
-
 		for (unsigned column = 0; column < _k_num_states; column++) {
 			float tmp = KH[0] * P[0][column];
 			tmp += KH[1] * P[1][column];
@@ -250,16 +233,12 @@ void Ekf::fuseSideslip()
 			// zero rows and columns
 			zeroRows(P,i,i);
 			zeroCols(P,i,i);
-
 			//flag as unhealthy
 			healthy = false;
-
 			// update individual measurement health status
 			_fault_status.flags.bad_sideslip = true;
-
 		}
 	}
-
 	// only apply covariance and state corrrections if healthy
 	if (healthy) {
 		// apply the covariance corrections
@@ -268,13 +247,10 @@ void Ekf::fuseSideslip()
 				P[row][column] = P[row][column] - KHP[row][column];
 			}
 		}
-
 		// correct the covariance marix for gross errors
 		fixCovarianceErrors();
-
 		// apply the state corrections
 		fuse(Kfusion, _beta_innov);
-
         }
     }
 }

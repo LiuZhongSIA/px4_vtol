@@ -47,12 +47,16 @@
 void Ekf::fuseVelPosHeight()
 {
 	bool fuse_map[6] = {}; // map of booleans true when [VN,VE,VD,PN,PE,PD] observations are available
+	                       //测量值可行的标志位
 	bool innov_check_pass_map[6] = {}; // true when innovations consistency checks pass for [VN,VE,VD,PN,PE,PD] observations
+	                                   //新息一致的标志位
 	float R[6] = {}; // observation variances for [VN,VE,VD,PN,PE,PD]
 	float gate_size[6] = {}; // innovation consistency check gate sizes for [VN,VE,VD,PN,PE,PD] observations
 	float Kfusion[24] = {}; // Kalman gain vector for any single observation - sequential fusion is used
 
 	// calculate innovations, innovations gate sizes and observation variances
+	// control.cpp 会设置标志位，控制是否进行平面速度融合（_fuse_hor_vel）、垂向速度融合（_fuse_vert_vel）、平面位置融合（_fuse_pos）、高度融合（_fuse_height）
+	// 下面根据设置标志位进行新息量的获取，并得到不同数据源的测量噪声协方差阵
 	if (_fuse_hor_vel) {
 		fuse_map[0] = fuse_map[1] = true;
 		// horizontal velocity innovations
@@ -67,7 +71,6 @@ void Ekf::fuseVelPosHeight()
 		gate_size[0] = fmaxf(_params.vel_innov_gate, 1.0f);
 		gate_size[1] = gate_size[0];
 	}
-
 	if (_fuse_vert_vel) {
 		fuse_map[2] = true;
 		// vertical velocity innovation
@@ -80,12 +83,11 @@ void Ekf::fuseVelPosHeight()
 		// innovation gate size
 		gate_size[2] = fmaxf(_params.vel_innov_gate, 1.0f);
 	}
-
 	if (_fuse_pos) {
 		fuse_map[3] = fuse_map[4] = true;
-
 		// Calculate innovations and observation variance depending on type of observations
 		// being used
+		// 使用不同的平面位置信息
 		if (_control_status.flags.gps) {
 			// we are using GPS measurements
 			float lower_limit = fmaxf(_params.gps_pos_noise, 0.01f);
@@ -93,20 +95,15 @@ void Ekf::fuseVelPosHeight()
 			R[3] = math::constrain(_gps_sample_delayed.hacc, lower_limit, upper_limit);
 			_vel_pos_innov[3] = _state.pos(0) - _gps_sample_delayed.pos(0);
 			_vel_pos_innov[4] = _state.pos(1) - _gps_sample_delayed.pos(1);
-
 			// innovation gate size
 			gate_size[3] = fmaxf(_params.posNE_innov_gate, 1.0f);
-
-
 		} else if (_control_status.flags.ev_pos) {
 			// we are using external vision measurements
 			R[3] = fmaxf(_ev_sample_delayed.posErr, 0.01f);
 			_vel_pos_innov[3] = _state.pos(0) - _ev_sample_delayed.posNED(0);
 			_vel_pos_innov[4] = _state.pos(1) - _ev_sample_delayed.posNED(1);
-
 			// innovation gate size
 			gate_size[3] = fmaxf(_params.ev_innov_gate, 1.0f);
-
 		} else {
 			// No observations - use a static position to constrain drift
 			if (_control_status.flags.in_air && _control_status.flags.tilt_align) {
@@ -114,24 +111,19 @@ void Ekf::fuseVelPosHeight()
 			} else {
 				R[3] = 0.5f;
 			}
-			_vel_pos_innov[3] = _state.pos(0) - _last_known_posNE(0);
+			_vel_pos_innov[3] = _state.pos(0) - _last_known_posNE(0); //使用一个固定的位置信息作为测量值，防止状态发散
 			_vel_pos_innov[4] = _state.pos(1) - _last_known_posNE(1);
-
 			// glitch protection is not required so set gate to a large value
 			gate_size[3] = 100.0f;
-
 		}
-
 		// convert North position noise to variance
 		R[3] = R[3] * R[3];
-
 		// copy North axis values to East axis
 		R[4] = R[3];
 		gate_size[4] = gate_size[3];
-
 	}
-
 	if (_fuse_height) {
+		// 气压计、GPS、测距仪、视觉
 		if (_control_status.flags.baro_hgt) {
 			fuse_map[5] = true;
 			// vertical position innovation - baro measurement has opposite sign to earth z axis
@@ -141,7 +133,6 @@ void Ekf::fuseVelPosHeight()
 			R[5] = R[5] * R[5];
 			// innovation gate size
 			gate_size[5] = fmaxf(_params.baro_innov_gate, 1.0f);
-
 		} else if (_control_status.flags.gps_hgt) {
 			fuse_map[5] = true;
 			// vertical position innovation - gps measurement has opposite sign to earth z axis
@@ -154,7 +145,6 @@ void Ekf::fuseVelPosHeight()
 			R[5] = R[5] * R[5];
 			// innovation gate size
 			gate_size[5] = fmaxf(_params.baro_innov_gate, 1.0f);
-
 		} else if (_control_status.flags.rng_hgt && (_R_to_earth(2, 2) > 0.7071f)) {
 			fuse_map[5] = true;
 			// use range finder with tilt correction
@@ -175,7 +165,6 @@ void Ekf::fuseVelPosHeight()
 			// innovation gate size
 			gate_size[5] = fmaxf(_params.ev_innov_gate, 1.0f);
 		}
-
 	}
 
 	// calculate innovation test ratios
@@ -183,10 +172,12 @@ void Ekf::fuseVelPosHeight()
 		if (fuse_map[obs_index]) {
 			// compute the innovation variance SK = HPH + R
 			unsigned state_index = obs_index + 4;	// we start with vx and this is the 4. state
+			// ..._innov_var 计算的是 HPH‘ + R，该值需要取逆进行 Kalman 增益的计算
+			// 从而进一步计算出 ..._test_ratio 进行一致性检测
 			_vel_pos_innov_var[obs_index] = P[state_index][state_index] + R[obs_index];
 			// Compute the ratio of innovation to gate size
 			_vel_pos_test_ratio[obs_index] = sq(_vel_pos_innov[obs_index]) / (sq(gate_size[obs_index]) *
-							 _vel_pos_innov_var[obs_index]);
+							                 _vel_pos_innov_var[obs_index]);
 		}
 	}
 
@@ -194,12 +185,11 @@ void Ekf::fuseVelPosHeight()
 	// treat 3D velocity, 2D position and height as separate sensors
 	// always pass position checks if using synthetic position measurements or yet to complete tilt alignment
 	// always pass height checks if yet to complete tilt alignment
-	bool vel_check_pass = (_vel_pos_test_ratio[0] <= 1.0f) && (_vel_pos_test_ratio[1] <= 1.0f)
-			      && (_vel_pos_test_ratio[2] <= 1.0f);
+	bool vel_check_pass = (_vel_pos_test_ratio[0] <= 1.0f) && (_vel_pos_test_ratio[1] <= 1.0f) && (_vel_pos_test_ratio[2] <= 1.0f);
 	innov_check_pass_map[2] = innov_check_pass_map[1] = innov_check_pass_map[0] = vel_check_pass;
 	bool pos_check_pass = ((_vel_pos_test_ratio[3] <= 1.0f) && (_vel_pos_test_ratio[4] <= 1.0f)) || !_control_status.flags.tilt_align;
 	innov_check_pass_map[4] = innov_check_pass_map[3] = pos_check_pass;
-	innov_check_pass_map[5] = (_vel_pos_test_ratio[5] <= 1.0f) || !_control_status.flags.tilt_align;
+	innov_check_pass_map[5] = (_vel_pos_test_ratio[5] <= 1.0f) || !_control_status.flags.tilt_align; //这是为了进行姿态校准
 
 	// record the successful velocity fusion event
 	if (vel_check_pass && _fuse_hor_vel) {
@@ -208,7 +198,6 @@ void Ekf::fuseVelPosHeight()
 	} else if (!vel_check_pass) {
 		_innov_check_fail_status.flags.reject_vel_NED = true;
 	}
-
 	// record the successful position fusion event
 	if (pos_check_pass && _fuse_pos) {
 		_time_last_pos_fuse = _time_last_imu;
@@ -216,7 +205,6 @@ void Ekf::fuseVelPosHeight()
 	} else if (!pos_check_pass) {
 		_innov_check_fail_status.flags.reject_pos_NE = true;
 	}
-
 	// record the successful height fusion event
 	if (innov_check_pass_map[5] && _fuse_height) {
 		_time_last_hgt_fuse = _time_last_imu;
@@ -227,17 +215,16 @@ void Ekf::fuseVelPosHeight()
 
 	for (unsigned obs_index = 0; obs_index < 6; obs_index++) {
 		// skip fusion if not requested or checks have failed
-		if (!fuse_map[obs_index] || !innov_check_pass_map[obs_index]) {
+		if (!fuse_map[obs_index] || !innov_check_pass_map[obs_index]) { //测量信息不可行 或者 一致性检测没通过
 			continue;
 		}
 
 		unsigned state_index = obs_index + 4;	// we start with vx and this is the 4. state
-
+		                                        //前面时4个四元数
 		// calculate kalman gain K = PHS, where S = 1/innovation variance
 		for (int row = 0; row < _k_num_states; row++) {
 			Kfusion[row] = P[row][state_index] / _vel_pos_innov_var[obs_index];
 		}
-
 		// update covarinace matrix via Pnew = (I - KH)P
 		float KHP[_k_num_states][_k_num_states];
 		for (unsigned row = 0; row < _k_num_states; row++) {
@@ -245,7 +232,6 @@ void Ekf::fuseVelPosHeight()
 				KHP[row][column] = Kfusion[row] * P[state_index][column];
 			}
 		}
-
 		// if the covariance correction will result in a negative variance, then
 		// the covariance marix is unhealthy and must be corrected
 		bool healthy = true;
@@ -254,10 +240,8 @@ void Ekf::fuseVelPosHeight()
 				// zero rows and columns
 				zeroRows(P,i,i);
 				zeroCols(P,i,i);
-
 				//flag as unhealthy
 				healthy = false;
-
 				// update individual measurement health status
 				if (obs_index == 0) {
 					_fault_status.flags.bad_vel_N = true;
@@ -298,10 +282,8 @@ void Ekf::fuseVelPosHeight()
 					P[row][column] = P[row][column] - KHP[row][column];
 				}
 			}
-
 			// correct the covariance marix for gross errors
 			fixCovarianceErrors();
-
 			// apply the state corrections
 			fuse(Kfusion, _vel_pos_innov[obs_index]);
 		}

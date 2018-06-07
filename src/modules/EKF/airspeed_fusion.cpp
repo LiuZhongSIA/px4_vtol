@@ -55,8 +55,10 @@ void Ekf::fuseAirspeed()
 	float v_tas_pred; // Predicted measurement
 	float R_TAS = sq(math::constrain(_params.eas_noise, 0.5f, 5.0f) * math::constrain(_airspeed_sample_delayed.eas2tas, 0.9f,
 			 10.0f)); // Variance for true airspeed measurement - (m/sec)^2
+			          // eas2tas = true_airspeed_m_s / indicated_airspeed_m_s
 	float SH_TAS[3] = {}; // Varialbe used to optimise calculations of measurement jacobian
 	float H_TAS[24] = {}; // Observation Jacobian
+	                      //风速管的测量值仅一个
 	float SK_TAS[2] = {}; // Varialbe used to optimise calculations of the Kalman gain vector
 	float Kfusion[24] = {}; // Kalman gain vector
 
@@ -66,8 +68,8 @@ void Ekf::fuseAirspeed()
 	vd = _state.vel(2);
 	vwn = _state.wind_vel(0);
 	vwe = _state.wind_vel(1);
-
 	// Calculate the predicted airspeed
+	// 风速预测值
 	v_tas_pred = sqrtf((ve - vwe) * (ve - vwe) + (vn - vwn) * (vn - vwn) + vd * vd);
 
 	// Perform fusion of True Airspeed measurement
@@ -77,10 +79,8 @@ void Ekf::fuseAirspeed()
 		SH_TAS[0] = 1.0f/v_tas_pred;
 		SH_TAS[1] = (SH_TAS[0]*(2.0f*ve - 2.0f*vwe))*0.5f;
 		SH_TAS[2] = (SH_TAS[0]*(2.0f*vn - 2.0f*vwn))*0.5f;
-
 		for (uint8_t i = 0; i < _k_num_states; i++) { H_TAS[i] = 0.0f; }
-
-		H_TAS[4] = SH_TAS[2];
+		H_TAS[4] = SH_TAS[2]; //风速测量值相对于系统状态的雅可比矩阵
 		H_TAS[5] = SH_TAS[1];
 		H_TAS[6] = vd*SH_TAS[0];
 		H_TAS[22] = -SH_TAS[2];
@@ -88,22 +88,20 @@ void Ekf::fuseAirspeed()
 
 		// We don't want to update the innovation variance if the calculation is ill conditioned
 		float _airspeed_innov_var_temp = (R_TAS + SH_TAS[2]*(P[4][4]*SH_TAS[2] + P[5][4]*SH_TAS[1] - P[22][4]*SH_TAS[2] - P[23][4]*SH_TAS[1] + P[6][4]*vd*SH_TAS[0]) + SH_TAS[1]*(P[4][5]*SH_TAS[2] + P[5][5]*SH_TAS[1] - P[22][5]*SH_TAS[2] - P[23][5]*SH_TAS[1] + P[6][5]*vd*SH_TAS[0]) - SH_TAS[2]*(P[4][22]*SH_TAS[2] + P[5][22]*SH_TAS[1] - P[22][22]*SH_TAS[2] - P[23][22]*SH_TAS[1] + P[6][22]*vd*SH_TAS[0]) - SH_TAS[1]*(P[4][23]*SH_TAS[2] + P[5][23]*SH_TAS[1] - P[22][23]*SH_TAS[2] - P[23][23]*SH_TAS[1] + P[6][23]*vd*SH_TAS[0]) + vd*SH_TAS[0]*(P[4][6]*SH_TAS[2] + P[5][6]*SH_TAS[1] - P[22][6]*SH_TAS[2] - P[23][6]*SH_TAS[1] + P[6][6]*vd*SH_TAS[0]));
-
 		if (_airspeed_innov_var_temp >= R_TAS) { // Check for badly conditioned calculation
 			SK_TAS[0] = 1.0f / _airspeed_innov_var_temp;
 			_fault_status.flags.bad_airspeed = false;
-
 		} else { // Reset the estimator covarinace matrix
 			_fault_status.flags.bad_airspeed = true;
 			initialiseCovariance();
 			ECL_ERR("EKF airspeed fusion numerical error - covariance reset");
 			return;
 		}
-
 		SK_TAS[1] = SH_TAS[1];
 
 		if (((_time_last_imu - _time_last_gps) < 1e6) || ((_time_last_imu - _time_last_ext_vision) < 1e6) || ((_time_last_imu - _time_last_optflow) < 1e6)) {
 			// If we are getting aiding from other sources, then don't allow the airspeed measurements to affect the non-windspeed states
+			// 有任意位置测量更新时，风速测量值不用于风向外的其他测量观测
 			for (unsigned row = 0; row <= 21; row++) {
 				Kfusion[row] = 0.0f;
 			}
@@ -135,17 +133,12 @@ void Ekf::fuseAirspeed()
 		Kfusion[22] = SK_TAS[0]*(P[22][4]*SH_TAS[2] - P[22][22]*SH_TAS[2] + P[22][5]*SK_TAS[1] - P[22][23]*SK_TAS[1] + P[22][6]*vd*SH_TAS[0]);
 		Kfusion[23] = SK_TAS[0]*(P[23][4]*SH_TAS[2] - P[23][22]*SH_TAS[2] + P[23][5]*SK_TAS[1] - P[23][23]*SK_TAS[1] + P[23][6]*vd*SH_TAS[0]);
 
-
 		// Calculate measurement innovation
-		_airspeed_innov = v_tas_pred -
-				  _airspeed_sample_delayed.true_airspeed;
-
+		_airspeed_innov = v_tas_pred - _airspeed_sample_delayed.true_airspeed;
 		// Calculate the innovation variance
 		_airspeed_innov_var = 1.0f / SK_TAS[0];
-
 		// Compute the ratio of innovation to gate size
 		_tas_test_ratio = sq(_airspeed_innov) / (sq(fmaxf(_params.tas_innov_gate, 1.0f)) * _airspeed_innov_var);
-
 		// If the innovation consistency check fails then don't fuse the sample and indicate bad airspeed health
 		if (_tas_test_ratio > 1.0f) {
 			_innov_check_fail_status.flags.reject_airspeed = true;
@@ -157,20 +150,17 @@ void Ekf::fuseAirspeed()
 
 		// Airspeed measurement sample has passed check so record it
 		_time_last_arsp_fuse = _time_last_imu;
-
 		// apply covariance correction via P_new = (I -K*H)*P
 		// first calculate expression for KHP
 		// then calculate P - KHP
 		float KHP[_k_num_states][_k_num_states];
 		float KH[5];
 		for (unsigned row = 0; row < _k_num_states; row++) {
-
 			KH[0] = Kfusion[row] * H_TAS[4];
 			KH[1] = Kfusion[row] * H_TAS[5];
 			KH[2] = Kfusion[row] * H_TAS[6];
 			KH[3] = Kfusion[row] * H_TAS[22];
 			KH[4] = Kfusion[row] * H_TAS[23];
-
 			for (unsigned column = 0; column < _k_num_states; column++) {
 				float tmp = KH[0] * P[4][column];
 				tmp += KH[1] * P[5][column];
@@ -190,16 +180,12 @@ void Ekf::fuseAirspeed()
 				// zero rows and columns
 				zeroRows(P,i,i);
 				zeroCols(P,i,i);
-
 				//flag as unhealthy
 				healthy = false;
-
 				// update individual measurement health status
 				_fault_status.flags.bad_airspeed = true;
-
 			}
 		}
-
 		// only apply covariance and state corrrections if healthy
 		if (healthy) {
 			// apply the covariance corrections
@@ -208,13 +194,10 @@ void Ekf::fuseAirspeed()
 					P[row][column] = P[row][column] - KHP[row][column];
 				}
 			}
-
 			// correct the covariance marix for gross errors
 			fixCovarianceErrors();
-
 			// apply the state corrections
 			fuse(Kfusion, _airspeed_innov);
-
 		}
 	}
 }
@@ -233,16 +216,13 @@ void Ekf::resetWindStates()
 	// get euler yaw angle
 	matrix::Euler<float> euler321(_state.quat_nominal);
 	float euler_yaw = euler321(2);
-
 	if (_tas_data_ready && (_imu_sample_delayed.time_us - _airspeed_sample_delayed.time_us < 5e5)) {
 		// estimate wind using zero sideslip assumption and airspeed measurement if airspeed available
 		_state.wind_vel(0) = _state.vel(0) - _airspeed_sample_delayed.true_airspeed * cosf(euler_yaw);
 		_state.wind_vel(1) = _state.vel(1) - _airspeed_sample_delayed.true_airspeed * sinf(euler_yaw);
-
 	} else {
 		// If we don't have an airspeed measurement, then assume the wind is zero
 		_state.wind_vel(0) = 0.0f;
 		_state.wind_vel(1) = 0.0f;
-
 	}
 }
