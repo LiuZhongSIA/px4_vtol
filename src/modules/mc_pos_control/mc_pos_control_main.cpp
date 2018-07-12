@@ -1061,7 +1061,7 @@ MulticopterPositionControl::control_manual(float dt)
 	}
 	/* vertical axis */
 	// 位置辅助下，一定有高度辅助
-	// 根据高度速度杆量，生成高度期望（V44待修改）
+	// 根据高度速度杆量，生成高度期望（V44定高待修改）
 	if (_control_mode.flag_control_altitude_enabled) { //高度辅助
 		/* check for pos. hold */
 		// 如果油门杆回中，在死区范围内
@@ -1598,7 +1598,7 @@ MulticopterPositionControl::task_main()
 		}
 
 		// 要求进行外环的控制 ↓
-		if (_control_mode.flag_control_altitude_enabled || //需要高度控制（V44待修改）
+		if (_control_mode.flag_control_altitude_enabled || //需要高度控制
 		    _control_mode.flag_control_position_enabled ||
 		    _control_mode.flag_control_climb_rate_enabled ||
 		    _control_mode.flag_control_velocity_enabled ||
@@ -1715,7 +1715,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = _pos_sp_triplet.current.vy;
 				}
 
-				// 单独的高度的P控制（V44待修改）
+				// 单独的高度的P控制（V44定高待修改）
 				if (_run_alt_control) {
 					_vel_sp(2) = (_pos_sp(2) - _pos(2)) * _params.pos_p(2);
 				}
@@ -1728,7 +1728,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = _vel_sp(1) * _params.vel_max(1) / vel_norm_xy;
 				}
 				/* make sure velocity setpoint is saturated in z*/
-				// 注意这里对于垂向期望速度的限制（V44待修改）
+				// 注意这里对于垂向期望速度的限制（V44定高待修改）
 				if (_vel_sp(2) < -1.0f * _params.vel_max_up) {
 					_vel_sp(2) = -1.0f * _params.vel_max_up;
 				}
@@ -1812,7 +1812,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = vel_sp_hor(1);
 				}
 				// limit vertical acceleration
-				// 限制垂向加速度（V44待修改）
+				// 限制垂向加速度（V44定高待修改）
 				float acc_v = (_vel_sp(2) - _vel_sp_prev(2)) / dt;
 				if ((fabsf(acc_v) > 2 * _params.acc_hor_max) & !_reset_alt_sp) {
 					acc_v /= fabsf(acc_v);
@@ -1893,6 +1893,7 @@ MulticopterPositionControl::task_main()
 						thrust_sp = math::Vector<3>(_pos_sp_triplet.current.a_x, _pos_sp_triplet.current.a_y, _pos_sp_triplet.current.a_z);
 					} else {
 						thrust_sp = vel_err.emult(_params.vel_p) + _vel_err_d.emult(_params.vel_d) + thrust_int; //PID控制器生成期望拉力值
+						                                                                                         //（V44定高待修改）
 					}
 					// 起飞的时候，由速度环提供一个恒定的拉力，其余轴的拉力为0
 					if (_pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_TAKEOFF
@@ -1902,6 +1903,7 @@ MulticopterPositionControl::task_main()
 						thrust_sp(2) = -_takeoff_thrust_sp;
 					}
 					// 仅“高度控制”时，水平面上的拉力值设为0
+					// （V44定高待修改）
 					if (!_control_mode.flag_control_velocity_enabled && !_control_mode.flag_control_acceleration_enabled) {
 						thrust_sp(0) = 0.0f;
 						thrust_sp(1) = 0.0f;
@@ -2052,7 +2054,7 @@ MulticopterPositionControl::task_main()
 							thrust_int(2) = 0.0f;
 						}
 						// 进行大旋翼转角下的“高度控制”时，
-						// 将高度的拉力控制积分器置为0
+						// 将高度的拉力控制积分器置为0（V44定高待修改）
 						if(_control_mode.flag_control_climb_rate_enabled &&
 						(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
 							_vtol_schedule.flight_mode == FW_MODE ||
@@ -2212,7 +2214,7 @@ MulticopterPositionControl::task_main()
 						_att_sp.roll_body = 0.0f;
 						_att_sp.pitch_body = 0.0f;
 					}
-					_att_sp.thrust = thrust_abs; //外环计算的总拉力期望（V44待修改）
+					_att_sp.thrust = thrust_abs; //外环计算的总拉力期望（V44定高待修改）
 
 					/* save thrust setpoint for logging */
 					_local_pos_sp.acc_x = thrust_sp(0) * ONE_G;
@@ -2257,7 +2259,7 @@ MulticopterPositionControl::task_main()
 		/* generate attitude setpoint from manual controls */
 		// 手动且姿态控制，包含“高度控制”
 		if (_control_mode.flag_control_manual_enabled && _control_mode.flag_control_attitude_enabled) {
-			// 手动且姿态控制，直接遥控器生成姿态期望（V44待修改）
+			// 手动且姿态控制，直接遥控器生成姿态期望
 
 			/* reset yaw setpoint to current position if needed */
 			if (reset_yaw_sp) {
@@ -2279,7 +2281,7 @@ MulticopterPositionControl::task_main()
 				if (fabsf(yaw_offs) < yaw_offset_max ||
 				    (_att_sp.yaw_sp_move_rate > 0 && yaw_offs < 0) ||
 				    (_att_sp.yaw_sp_move_rate < 0 && yaw_offs > 0)) {
-					_att_sp.yaw_body = yaw_target; //杆量生成的航向期望（V44待修改）
+					_att_sp.yaw_body = yaw_target; //杆量生成的航向期望
 				}
 			}
 
@@ -2386,7 +2388,7 @@ MulticopterPositionControl::task_main()
 					_att_sp.thrust = math::min(thr_val, _manual_thr_max.get());
 					/* enforce minimum throttle if not landed */
 					if (!_vehicle_land_detected.landed) {
-						_att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get()); //杆量生成的油门（V44待修改）
+						_att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get()); //杆量生成的油门（V44定高待修改）
 					}
 				}
 				// 进一步进行大旋翼转角下的“高度控制”
@@ -2401,10 +2403,10 @@ MulticopterPositionControl::task_main()
 				}
 				else{
 					// 只有在“不”进行大旋翼转角下的“高度控制”时，
-					// 杆量直接俯仰（V44待修改）
+					// 杆量直接俯仰（V44定高待修改）
 					_att_sp.pitch_body = -_manual.x * _params.man_pitch_max;
 				}
-				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转（V44待修改）
+				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转
 				
 				// 根据处于的状态，决定杆量的生成量
 				// 记录倾转的状态
