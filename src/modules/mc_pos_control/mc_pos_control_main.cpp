@@ -289,6 +289,11 @@ private:
 	bool _alt_hold_engaged;
 	bool _run_pos_control; //运行位置控制，主要是自动模式下的标志位
 	bool _run_alt_control;
+	// 标志位，高度控制且具有较大的旋翼倾转角度
+	bool _alt_lar_ang;
+	// 记录_alt_lar_ang变成true时的 油门量、杆位置
+	float _thrust_value;
+	float _stick_position;
 
 	math::Vector<3> _pos;
 	math::Vector<3> _pos_sp;
@@ -466,6 +471,9 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_alt_hold_engaged(false),
 	_run_pos_control(true),
 	_run_alt_control(true),
+	_alt_lar_ang(false),
+	_thrust_value(0.5f),
+	_stick_position(0.5f),
 	_yaw(0.0f),
 	_in_landing(false),
 	_lnd_reached_ground(false),
@@ -993,8 +1001,18 @@ MulticopterPositionControl::control_manual(float dt)
 	math::Vector<3> req_vel_sp; // X,Y in local frame and Z in global (D), in [-1,1] normalized range
 	req_vel_sp.zero();
 	if (_control_mode.flag_control_altitude_enabled) {
-		/* set vertical velocity setpoint with throttle stick */
-		req_vel_sp(2) = -scale_control(_manual.z - 0.5f, 0.5f, _params.alt_ctl_dz, _params.alt_ctl_dy); // D
+		if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
+		   _vtol_schedule.flight_mode == FW_MODE ||
+		   _vtol_schedule.flight_mode == TRANSITION_BACK_P1) {
+			// 较大旋翼倾转角度下，俯仰杆生成垂向速度期望（V44定高待修改)
+			req_vel_sp(2) = scale_control(_manual.x, 1.0f, _params.alt_ctl_dz, _params.alt_ctl_dy); // D
+			PX4_INFO("%.5f, %.5f \n", (double)_manual.x, (double)req_vel_sp(2));
+		}
+		else {
+			/* set vertical velocity setpoint with throttle stick */
+			// 较小旋翼倾转角度下，油门杆生成垂向速度期望
+			req_vel_sp(2) = -scale_control(_manual.z - 0.5f, 0.5f, _params.alt_ctl_dz, _params.alt_ctl_dy); // D
+		}
 	}
 	if (_control_mode.flag_control_position_enabled) {
 		/* set horizontal velocity setpoint with roll/pitch stick */
@@ -1728,7 +1746,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = _vel_sp(1) * _params.vel_max(1) / vel_norm_xy;
 				}
 				/* make sure velocity setpoint is saturated in z*/
-				// 注意这里对于垂向期望速度的限制（V44定高待修改）
+				// 注意这里对于垂向期望速度的限制
 				if (_vel_sp(2) < -1.0f * _params.vel_max_up) {
 					_vel_sp(2) = -1.0f * _params.vel_max_up;
 				}
@@ -1812,7 +1830,7 @@ MulticopterPositionControl::task_main()
 					_vel_sp(1) = vel_sp_hor(1);
 				}
 				// limit vertical acceleration
-				// 限制垂向加速度（V44定高待修改）
+				// 限制垂向加速度
 				float acc_v = (_vel_sp(2) - _vel_sp_prev(2)) / dt;
 				if ((fabsf(acc_v) > 2 * _params.acc_hor_max) & !_reset_alt_sp) {
 					acc_v /= fabsf(acc_v);
@@ -2056,7 +2074,7 @@ MulticopterPositionControl::task_main()
 						// 进行大旋翼转角下的“高度控制”时，
 						// 将高度的拉力控制积分器置为0（V44定高待修改）
 						if(_control_mode.flag_control_climb_rate_enabled &&
-						(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
+						   (_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
 							_vtol_schedule.flight_mode == FW_MODE ||
 							_vtol_schedule.flight_mode == TRANSITION_BACK_P1)){
 							thrust_int(2) = 0.0f;
@@ -2393,17 +2411,29 @@ MulticopterPositionControl::task_main()
 				}
 				// 进一步进行大旋翼转角下的“高度控制”
 				// 大旋翼转角意味着较大飞行速度，可以使用俯仰角进行高度控制
-				// 旋翼拉力是否保持高度控制？？？还是重新进行赋值？？？
+				// DC增益调度 实现高度控制（V44定高待修改）！！！
 				if(_control_mode.flag_control_climb_rate_enabled &&
 				   (_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
 					_vtol_schedule.flight_mode == FW_MODE ||
 					_vtol_schedule.flight_mode == TRANSITION_BACK_P1)){
+					// 记录首次进入该函数时的拉力值和油门杆位置
+					if(_alt_lar_ang == false){
+						_thrust_value = _att_sp.thrust;
+						_stick_position = _manual.z;
+					}
+					_alt_lar_ang = true;
+					// 油门杆需要直接生成旋翼拉力，因为之前油门杆生成了垂向期望速度，并计算得到了一个拉力值
+					// 这里需要继承之前的拉力值，在此基础上通过油门杆进一步修改拉力
+					// _att_sp.thrust = ？？？
 					// 设计新的速度环控制器，生成俯仰姿态期望
 					// _att_sp.pitch_body = ？？？
 				}
 				else{
-					// 只有在“不”进行大旋翼转角下的“高度控制”时，
-					// 杆量直接俯仰（V44定高待修改）
+					_alt_lar_ang = false;
+					// 高度控制可以通过拉力实现
+					// 保持之前的生成值 as follows
+					// _att_sp.thrust = thrust_abs / _att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get())
+					// 相应杆量直接俯仰
 					_att_sp.pitch_body = -_manual.x * _params.man_pitch_max;
 				}
 				_att_sp.roll_body = _manual.y * _params.man_roll_max; //杆量给滚转
