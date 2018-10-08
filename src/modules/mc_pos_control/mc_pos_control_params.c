@@ -543,3 +543,38 @@ PARAM_DEFINE_FLOAT(VT_SPEED_M_END, 90.0f);
  * @group Multicopter Position Control
  */
 PARAM_DEFINE_FLOAT(VT_SPEED_END_MC, 45.0f);
+
+/*************************************************************************************************/
+/*************************************************************************************************/
+
+/**
+ * Proportional gain for vertical velocity error (fixed-wing)
+ *
+ * @min 0.1
+ * @max 0.6
+ * @decimal 2
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(FIXED_Z_VEL_P, 0.4f);
+
+/**
+ * Integral gain for vertical velocity error (fixed-wing)
+ *
+ * Non zero value allows hovering thrust estimation on stabilized or autonomous takeoff.
+ *
+ * @min 0.0
+ * @max 0.1
+ * @decimal 3
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(FIXED_Z_VEL_I, 0.04f);
+
+/**
+ * Differential gain for vertical velocity error (fixed-wing)
+ *
+ * @min 0.0
+ * @max 0.1
+ * @decimal 3
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(FIXED_Z_VEL_D, 0.0f);

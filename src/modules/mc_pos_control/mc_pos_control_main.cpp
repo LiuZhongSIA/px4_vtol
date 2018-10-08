@@ -229,6 +229,10 @@ private:
 		param_t v44_MC2m_speed;
 		param_t v44_m2end_speed;
 		param_t v44_end2MC_speed;
+		// 固定翼高度控制
+		param_t fixed_z_vel_p;
+		param_t fixed_z_vel_i;
+		param_t fixed_z_vel_d;
 	}		_params_handles;		/**< handles for interesting parameters */
 
 	// 存储地面站参数
@@ -273,6 +277,10 @@ private:
 		float v44_MC2m_speed;
 		float v44_m2end_speed;
 		float v44_end2MC_speed;
+		// 固定翼高度控制
+		float fixed_z_vel_p;
+		float fixed_z_vel_i;
+		float fixed_z_vel_d;
 	}		_params;
 
 	// 地图上的参考位置
@@ -294,6 +302,10 @@ private:
 	// 记录_alt_lar_ang变成true时的 油门量、杆位置
 	float _thrust_value;
 	float _stick_position;
+	// 标志位，是否直接更新速度期望
+	bool refresh_z_vel_sp;
+	// 上一周期飞行状态
+	vtol_mode flight_mode_last;
 
 	math::Vector<3> _pos;
 	math::Vector<3> _pos_sp;
@@ -474,6 +486,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_alt_lar_ang(false),
 	_thrust_value(0.5f),
 	_stick_position(0.5f),
+	refresh_z_vel_sp(false),
 	_yaw(0.0f),
 	_in_landing(false),
 	_lnd_reached_ground(false),
@@ -491,6 +504,7 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	// V44倾转变量
 	_vtol_schedule.flight_mode = MC_MODE; //默认是在多轴模式下
 	_vtol_schedule.transition_start = 0;
+	flight_mode_last = MC_MODE;
 
 	// Make the quaternion valid for control state
 	_ctrl_state.q[0] = 1.0f;
@@ -572,6 +586,10 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_params_handles.v44_MC2m_speed = param_find("VT_SPEED_MC_M");
 	_params_handles.v44_m2end_speed = param_find("VT_SPEED_M_END");
 	_params_handles.v44_end2MC_speed = param_find("VT_SPEED_END_MC");
+	// 固定翼高度控制
+	_params_handles.fixed_z_vel_p = param_find("FIXED_Z_VEL_P");
+	_params_handles.fixed_z_vel_i = param_find("FIXED_Z_VEL_I");
+	_params_handles.fixed_z_vel_d = param_find("FIXED_Z_VEL_D");
 
 	/* fetch initial parameter values */
 	parameters_update(true);
@@ -724,6 +742,13 @@ MulticopterPositionControl::parameters_update(bool force)
 		_params.v44_m2end_speed = math::radians(v);
 		param_get(_params_handles.v44_end2MC_speed, &v);
 		_params.v44_end2MC_speed = math::radians(v);
+		// 固定翼高度控制
+		param_get(_params_handles.fixed_z_vel_p, &v);
+		_params.fixed_z_vel_p = v;
+		param_get(_params_handles.fixed_z_vel_i, &v);
+		_params.fixed_z_vel_i = v;
+		param_get(_params_handles.fixed_z_vel_d, &v);
+		_params.fixed_z_vel_d = v;
 	}
 
 	return OK;
@@ -1004,11 +1029,30 @@ MulticopterPositionControl::control_manual(float dt)
 		if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
 		   _vtol_schedule.flight_mode == FW_MODE ||
 		   _vtol_schedule.flight_mode == TRANSITION_BACK_P1) {
+			// 上次飞行状态与这次发生了大变化
+			if(flight_mode_last != TRANSITION_FRONT_P2 &&
+			   flight_mode_last != FW_MODE &&
+			   flight_mode_last != TRANSITION_BACK_P1){
+				   refresh_z_vel_sp = true;
+			   }
+			   else{
+				   refresh_z_vel_sp = false;
+			   }
+			flight_mode_last = _vtol_schedule.flight_mode;
 			// 较大旋翼倾转角度下，俯仰杆生成垂向速度期望（V44定高待修改)
 			req_vel_sp(2) = scale_control(_manual.x, 1.0f, _params.alt_ctl_dz, _params.alt_ctl_dy); // D
-			PX4_INFO("%.5f, %.5f \n", (double)_manual.x, (double)req_vel_sp(2));
 		}
 		else {
+			// 上次飞行状态与这次发生了大变化
+			if(flight_mode_last != TRANSITION_BACK_P2 &&
+			   flight_mode_last != MC_MODE &&
+			   flight_mode_last != TRANSITION_FRONT_P1){
+				   refresh_z_vel_sp = true;
+			   }
+			   else{
+				   refresh_z_vel_sp = false;
+			   }
+			flight_mode_last = _vtol_schedule.flight_mode;
 			/* set vertical velocity setpoint with throttle stick */
 			// 较小旋翼倾转角度下，油门杆生成垂向速度期望
 			req_vel_sp(2) = -scale_control(_manual.z - 0.5f, 0.5f, _params.alt_ctl_dz, _params.alt_ctl_dy); // D
@@ -1039,7 +1083,7 @@ MulticopterPositionControl::control_manual(float dt)
 	math::Matrix<3, 3> R_yaw_sp;
 	R_yaw_sp.from_euler(0.0f, 0.0f, _att_sp.yaw_body);
 	math::Vector<3> req_vel_sp_scaled = R_yaw_sp * req_vel_sp.emult(_params.vel_cruise); // in NED and scaled to actual velocity
-
+	
 	/*
 	 * assisted velocity mode: user controls velocity, but if	velocity is small enough, position
 	 * hold is activated for the corresponding axis
@@ -1082,7 +1126,7 @@ MulticopterPositionControl::control_manual(float dt)
 	// 根据高度速度杆量，生成高度期望（V44定高待修改）
 	if (_control_mode.flag_control_altitude_enabled) { //高度辅助
 		/* check for pos. hold */
-		// 如果油门杆回中，在死区范围内
+		// 如果杆回中，在死区范围内
 		if (fabsf(req_vel_sp(2)) < FLT_EPSILON) {
 			if (!_alt_hold_engaged) {
 				// 如果当前的速度足够小
@@ -1104,7 +1148,11 @@ MulticopterPositionControl::control_manual(float dt)
 			_run_alt_control = false; /* request velocity setpoint to be used, instead of altitude setpoint */
 			_vel_sp(2) = req_vel_sp_scaled(2);
 		}
+		if(refresh_z_vel_sp){
+			_vel_sp(2) = req_vel_sp_scaled(2);
+		}
 	}
+	// PX4_INFO("Z_vel_sp: %.5f\n", (double)_vel_sp(2));
 }
 
 //
@@ -1515,6 +1563,8 @@ MulticopterPositionControl::task_main()
 
 	math::Vector<3> thrust_int; //拉力积分值
 	thrust_int.zero();
+	math::Vector<1> pitch_int; //俯仰积分器
+	pitch_int.zero();
 
 	// Let's be safe and have the landing gear down by default
 	_att_sp.landing_gear = -1.0f;
@@ -2071,13 +2121,19 @@ MulticopterPositionControl::task_main()
 						if (thrust_int(2) > 0.0f) {
 							thrust_int(2) = 0.0f;
 						}
-						// 进行大旋翼转角下的“高度控制”时，
-						// 将高度的拉力控制积分器置为0（V44定高待修改）
-						if(_control_mode.flag_control_climb_rate_enabled &&
-						   (_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
-							_vtol_schedule.flight_mode == FW_MODE ||
-							_vtol_schedule.flight_mode == TRANSITION_BACK_P1)){
+					}
+					// 进行大旋翼转角下的“高度控制”时，
+					// 将高度的拉力控制积分器置为0（V44定高待修改）
+					if (_control_mode.flag_control_climb_rate_enabled){
+						if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
+						   _vtol_schedule.flight_mode == FW_MODE ||
+						   _vtol_schedule.flight_mode == TRANSITION_BACK_P1){
 							thrust_int(2) = 0.0f;
+						}
+						// 进行小旋翼转角下的“高度控制”时，
+						// 将高度的俯仰控制积分器置为0
+						else{
+							pitch_int.zero();
 						}
 					}
 					// 计算NED三轴方向的所需拉力值 ↑
@@ -2424,9 +2480,28 @@ MulticopterPositionControl::task_main()
 					_alt_lar_ang = true;
 					// 油门杆需要直接生成旋翼拉力，因为之前油门杆生成了垂向期望速度，并计算得到了一个拉力值
 					// 这里需要继承之前的拉力值，在此基础上通过油门杆进一步修改拉力
-					// _att_sp.thrust = ？？？
+					float thr_val = _params.thr_hover;
+					if(_manual.z < _stick_position){ //折线
+						thr_val = _thrust_value / _stick_position * _manual.z;
+					}
+					else{
+						thr_val = (1.0f - _thrust_value) / (1.0f - _stick_position) * (_manual.z - _stick_position) + _thrust_value;
+					}
+					_att_sp.thrust = math::min(thr_val, _manual_thr_max.get());
+					if (!_vehicle_land_detected.landed) {
+						_att_sp.thrust = math::max(_att_sp.thrust, _manual_thr_min.get());
+					}
 					// 设计新的速度环控制器，生成俯仰姿态期望
-					// _att_sp.pitch_body = ？？？
+					math::Vector<3> vel_err = _vel_sp - _vel;
+					_att_sp.pitch_body = _params.fixed_z_vel_p * vel_err(2) + pitch_int(0) + _params.fixed_z_vel_d * _vel_err_d(2);
+					_att_sp.pitch_body = -_att_sp.pitch_body; //-z=h=V*sin(theta-alpha)
+					if(_att_sp.pitch_body <= _params.man_pitch_max &&
+					   _att_sp.pitch_body >= -_params.man_pitch_max){
+						pitch_int(0) = pitch_int(0) + vel_err(2) * _params.fixed_z_vel_i * dt; //积分器更新
+					} 
+					else{
+						_att_sp.pitch_body = math::constrain(_att_sp.pitch_body, -_params.man_pitch_max, _params.man_pitch_max);
+					}
 				}
 				else{
 					_alt_lar_ang = false;

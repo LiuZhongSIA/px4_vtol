@@ -1357,9 +1357,9 @@ MulticopterAttitudeControl::task_main()
 				_v44_control_status.forw_back_servo = _att_control_ts(1);
 				_v44_control_status.timestamp = hrt_absolute_time();
 
-				PX4_INFO("V44 data: %.5f, %.5f, %.5f \n", (double)_v44_control_status.tilt_mode,
-		                                                  (double)_actuators1.control[4], 
-														  (double)_actuators1.control[2]);
+				// PX4_INFO("V44 data: %.5f, %.5f, %.5f \n", (double)_v44_control_status.tilt_mode,
+		                                                  // (double)_actuators1.control[4], 
+														  // (double)_actuators1.control[2]);
 
 				if (!_actuators_0_circuit_breaker_enabled) {
 					if (_actuators_0_pub != nullptr) { //发布控制量给混控！！！
