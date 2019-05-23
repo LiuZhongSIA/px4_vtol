@@ -1563,6 +1563,8 @@ MulticopterPositionControl::task_main()
 
 	math::Vector<3> thrust_int; //拉力积分值
 	thrust_int.zero();
+	float thrust_int_2; //保存垂向拉力积分值
+	thrust_int_2 = 0.0f;
 	math::Vector<1> pitch_int; //俯仰积分器
 	pitch_int.zero();
 
@@ -2123,16 +2125,17 @@ MulticopterPositionControl::task_main()
 						}
 					}
 					// 进行大旋翼转角下的“高度控制”时，
-					// 将高度的拉力控制积分器置为0（V44定高待修改）
+					// 将高度的拉力控制积分器置为小旋翼倾转角下的值（V44定高待修改）
 					if (_control_mode.flag_control_climb_rate_enabled){
 						if(_vtol_schedule.flight_mode == TRANSITION_FRONT_P2 ||
 						   _vtol_schedule.flight_mode == FW_MODE ||
 						   _vtol_schedule.flight_mode == TRANSITION_BACK_P1){
-							thrust_int(2) = 0.0f;
+							thrust_int(2) = thrust_int_2;
 						}
 						// 进行小旋翼转角下的“高度控制”时，
-						// 将高度的俯仰控制积分器置为0
+						// 保留垂向拉力积分器的值，将高度的俯仰控制积分器置为0
 						else{
+							thrust_int_2 = thrust_int(2);
 							pitch_int.zero();
 						}
 					}
@@ -2227,9 +2230,9 @@ MulticopterPositionControl::task_main()
 								_vtol_schedule.transition_start = hrt_absolute_time();
 								if (_v44_tilt_flag_sp.tilt_angle <= _params.v44_middle)
 								{
-									_v44_tilt_flag_sp.tilt_angle = _params.v44_middle;
-									if (longitudinalV <= _params.v44_keyspeed || !_arming.armed || _vehicle_land_detected.landed)
-										_vtol_schedule.flight_mode = TRANSITION_BACK_P2;
+									// _v44_tilt_flag_sp.tilt_angle = _params.v44_middle;
+									// if (longitudinalV <= _params.v44_keyspeed || !_arming.armed || _vehicle_land_detected.landed)
+									_vtol_schedule.flight_mode = TRANSITION_BACK_P2;
 								}
 								break;
 							case TRANSITION_BACK_P2:
@@ -2437,9 +2440,9 @@ MulticopterPositionControl::task_main()
 							_vtol_schedule.transition_start = hrt_absolute_time();
 							if (_v44_tilt_flag_sp.tilt_angle <= _params.v44_middle)
 							{
-								_v44_tilt_flag_sp.tilt_angle = _params.v44_middle;
-								if (longitudinalV <= _params.v44_keyspeed || !_arming.armed || _vehicle_land_detected.landed)
-									_vtol_schedule.flight_mode = TRANSITION_BACK_P2;
+								// _v44_tilt_flag_sp.tilt_angle = _params.v44_middle;
+								// if (longitudinalV <= _params.v44_keyspeed || !_arming.armed || _vehicle_land_detected.landed)
+								_vtol_schedule.flight_mode = TRANSITION_BACK_P2;
 							}
 							break;
 						case TRANSITION_BACK_P2:
